@@ -200,8 +200,10 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// Start server
+// CRITICAL: Railway needs the app to listen on 0.0.0.0, not localhost
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 BLS Sync API running on port ${PORT}`);
+const HOST = '0.0.0.0';
+
+app.listen(PORT, HOST, () => {
+  console.log(`🚀 BLS Sync API running on ${HOST}:${PORT}`);
 });
