@@ -188,8 +188,20 @@ app.get('/', (req, res) => {
         function showAddModal() {
             editIdx = -1;
             document.getElementById('modal-title').textContent = 'Add Applicant';
-            ['ff','fl','fp','fd','fb','fi','fg','fph'].forEach(id => document.getElementById(id).value = '');
+            
+            // Clear all form fields
+            document.getElementById('ff').value = '';
+            document.getElementById('fl').value = '';
+            document.getElementById('fp').value = '';
+            document.getElementById('fd').value = '';
+            document.getElementById('fb').value = '';
+            document.getElementById('fi').value = '';
+            document.getElementById('fg').value = '';
+            
+            // IMPORTANT: Clear file input and preview
+            document.getElementById('fph').value = '';
             document.getElementById('prev').innerHTML = '';
+            
             document.getElementById('modal').classList.add('active');
         }
 
@@ -223,11 +235,22 @@ app.get('/', (req, res) => {
             document.getElementById('fb').value = a.PlaceOfBirth||'';
             document.getElementById('fi').value = a.IssuePlace||'';
             document.getElementById('fg').value = a.group||'';
+            
+            // IMPORTANT: Clear file input to prevent old photo from being applied
+            document.getElementById('fph').value = '';
+            
+            // Show existing photo preview if exists
             document.getElementById('prev').innerHTML = a.photo ? \`<img src="\${a.photo}" style="max-width:150px;border-radius:8px;margin-top:10px">\` : '';
+            
             document.getElementById('modal').classList.add('active');
         }
 
-        function closeModal() { document.getElementById('modal').classList.remove('active'); }
+        function closeModal() { 
+            // Clear file input when closing modal
+            document.getElementById('fph').value = '';
+            document.getElementById('prev').innerHTML = '';
+            document.getElementById('modal').classList.remove('active'); 
+        }
 
         document.getElementById('fph').addEventListener('change', e => {
             const f = e.target.files[0];
@@ -246,13 +269,26 @@ app.get('/', (req, res) => {
             
             const pf = document.getElementById('fph').files[0];
             let ph = null;
+            
+            // Priority 1: If new photo file selected, use it
             if (pf) {
+                console.log('Using new photo file');
                 ph = await new Promise(res => {
                     const r = new FileReader();
                     r.onload = e => res(e.target.result);
                     r.readAsDataURL(pf);
                 });
-            } else if (editIdx >= 0) ph = apps[editIdx].photo;
+            } 
+            // Priority 2: If editing and NO new photo, keep existing photo
+            else if (editIdx >= 0 && apps[editIdx].photo) {
+                console.log('Keeping existing photo');
+                ph = apps[editIdx].photo;
+            }
+            // Priority 3: No photo (new applicant or editing without photo)
+            else {
+                console.log('No photo');
+                ph = null;
+            }
 
             const a = {
                 group: document.getElementById('fg').value,
@@ -263,8 +299,14 @@ app.get('/', (req, res) => {
                 photo: ph
             };
             
-            if (editIdx >= 0) apps[editIdx] = a;
-            else apps.push(a);
+            if (editIdx >= 0) {
+                console.log('Updating applicant at index', editIdx);
+                apps[editIdx] = a;
+            } else {
+                console.log('Adding new applicant');
+                apps.push(a);
+            }
+            
             if (a.group && !groups.includes(a.group)) groups.push(a.group);
             await sync();
             closeModal();
