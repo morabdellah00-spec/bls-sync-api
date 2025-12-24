@@ -2,69 +2,44 @@ const express = require('express');
 const cors = require('cors');
 
 const app = express();
-
-// Middleware
 app.use(cors());
-app.use(express.json({ limit: '50mb' })); // Increased for photos
+app.use(express.json({ limit: '50mb' }));
 
-// Simple in-memory storage
 let sharedData = {
   applicants: [],
   groups: [],
   lastModified: new Date().toISOString()
 };
 
-// Serve dashboard at root
 app.get('/', (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BLS Applicant Manager - Dashboard</title>
+    <title>BLS Applicant Manager</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
         .container { max-width: 1400px; margin: 0 auto; }
-        .header {
-            background: white; border-radius: 12px; padding: 20px 30px;
-            margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            display: flex; justify-content: space-between; align-items: center;
-        }
+        .header { background: white; border-radius: 12px; padding: 20px 30px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
         .header h1 { color: #667eea; font-size: 24px; }
-        .sync-status {
-            display: flex; align-items: center; gap: 8px;
-            padding: 8px 16px; background: #f0f4ff; border-radius: 8px; font-size: 14px;
-        }
+        .sync-status { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: #f0f4ff; border-radius: 8px; font-size: 14px; }
         .sync-dot { width: 10px; height: 10px; border-radius: 50%; background: #27ae60; animation: pulse 2s infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         .card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .section-title { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: #2c3e50; }
-        .btn {
-            padding: 10px 20px; border: none; border-radius: 8px;
-            font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;
-        }
+        .btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
         .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
         .btn-primary { background: #667eea; color: white; }
         .btn-success { background: #27ae60; color: white; }
         .btn-danger { background: #e74c3c; color: white; }
         .btn-warning { background: #f39c12; color: white; }
         .toolbar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
-        .search-box {
-            flex: 1; min-width: 200px; padding: 10px 15px;
-            border: 2px solid #ecf0f1; border-radius: 8px; font-size: 14px;
-        }
+        .search-box { flex: 1; min-width: 200px; padding: 10px 15px; border: 2px solid #ecf0f1; border-radius: 8px; font-size: 14px; }
         .search-box:focus { outline: none; border-color: #667eea; }
         .groups-filter { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
-        .group-badge {
-            padding: 8px 16px; background: #ecf0f1; border-radius: 20px;
-            font-size: 13px; cursor: pointer; transition: all 0.2s;
-        }
+        .group-badge { padding: 8px 16px; background: #ecf0f1; border-radius: 20px; font-size: 13px; cursor: pointer; transition: all 0.2s; }
         .group-badge:hover { background: #667eea; color: white; transform: translateY(-1px); }
         .group-badge.active { background: #667eea; color: white; }
         table { width: 100%; border-collapse: collapse; }
@@ -97,7 +72,6 @@ app.get('/', (req, res) => {
         .toast.success { background: #27ae60; }
         .toast.error { background: #e74c3c; }
         .empty-state { text-align: center; padding: 60px 20px; color: #95a5a6; }
-        @media (max-width: 768px) { .header { flex-direction: column; gap: 15px; } .toolbar { flex-direction: column; } table { font-size: 12px; } }
     </style>
 </head>
 <body>
@@ -119,6 +93,7 @@ app.get('/', (req, res) => {
             <div class="toolbar">
                 <input type="text" class="search-box" id="search" placeholder="🔍 Search..." oninput="filterApplicants()">
                 <button class="btn btn-success" onclick="showAddModal()">➕ Add</button>
+                <button class="btn btn-primary" onclick="showAddGroupModal()">📁 Add Group</button>
                 <button class="btn btn-primary" onclick="importData()">📤 Import</button>
                 <button class="btn btn-warning" onclick="exportData()">💾 Export</button>
                 <button class="btn btn-danger" onclick="deleteAll()">🗑️ Delete All</button>
@@ -146,6 +121,15 @@ app.get('/', (req, res) => {
                 <div class="form-group"><label>Photo (Max 200KB)</label><input type="file" id="fph" accept="image/*"><div id="prev"></div></div>
             </div>
             <div class="modal-footer"><button class="btn btn-danger" onclick="closeModal()">Cancel</button><button class="btn btn-success" onclick="saveApplicant()">Save</button></div>
+        </div>
+    </div>
+    <div id="group-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header"><h2>Add New Group</h2><button class="close-btn" onclick="closeGroupModal()">&times;</button></div>
+            <div class="modal-body">
+                <div class="form-group"><label>Group Name *</label><input type="text" id="new-group-name" placeholder="e.g. Family, Friends"></div>
+            </div>
+            <div class="modal-footer"><button class="btn btn-danger" onclick="closeGroupModal()">Cancel</button><button class="btn btn-success" onclick="saveGroup()">Add Group</button></div>
         </div>
     </div>
     <script>
@@ -209,6 +193,25 @@ app.get('/', (req, res) => {
             document.getElementById('modal').classList.add('active');
         }
 
+        function showAddGroupModal() {
+            document.getElementById('new-group-name').value = '';
+            document.getElementById('group-modal').classList.add('active');
+        }
+
+        function closeGroupModal() {
+            document.getElementById('group-modal').classList.remove('active');
+        }
+
+        async function saveGroup() {
+            const name = document.getElementById('new-group-name').value.trim();
+            if (!name) { toast('Enter group name!', 'error'); return; }
+            if (groups.includes(name)) { toast('Group already exists!', 'error'); return; }
+            groups.push(name);
+            await sync();
+            closeGroupModal();
+            toast('Group added!', 'success');
+        }
+
         function edit(i) {
             editIdx = i;
             const a = apps[i];
@@ -270,15 +273,13 @@ app.get('/', (req, res) => {
 
         async function del(i) {
             if (!confirm('Delete this applicant?')) return;
-            console.log('Deleting applicant at index:', i);
             apps.splice(i, 1);
-            console.log('After delete, array length:', apps.length);
             await sync();
             toast('Deleted!', 'success');
         }
 
         async function deleteAll() {
-            if (!confirm('Delete ALL applicants? Cannot be undone!')) return;
+            if (!confirm('Delete ALL?')) return;
             apps = []; groups = [];
             await sync();
             toast('All deleted!', 'success');
@@ -286,18 +287,16 @@ app.get('/', (req, res) => {
 
         async function sync() {
             try {
-                console.log('Syncing to server:', apps.length, 'applicants');
                 const r = await fetch(API + '/api/applicants/sync', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ applicants: apps, groups })
                 });
                 const d = await r.json();
-                console.log('Server response:', d);
                 apps = d.data.applicants;
                 groups = d.data.groups;
                 render(); renderGroups(); updateStats();
-            } catch (e) { console.error('Sync error:', e); toast('Sync failed!', 'error'); }
+            } catch (e) { toast('Sync failed!', 'error'); }
         }
 
         async function syncNow() { await loadData(); toast('Synced!', 'success'); }
@@ -324,34 +323,17 @@ app.get('/', (req, res) => {
                 const r = new FileReader();
                 r.onload = async ev => {
                     try {
-                        console.log('Importing file...');
                         const d = JSON.parse(ev.target.result);
-                        console.log('Parsed data:', d);
-                        
-                        if (!d.applicants || !Array.isArray(d.applicants)) {
-                            console.error('Invalid format - no applicants array');
-                            throw new Error('Invalid file format - missing applicants array');
-                        }
-                        
-                        console.log('Valid data, merging...');
-                        
-                        // Merge applicants without duplicates
+                        if (!d.applicants || !Array.isArray(d.applicants)) throw new Error('Invalid');
                         const existingPassports = new Set(apps.map(a => a.PassportNo));
                         const newApps = d.applicants.filter(a => !existingPassports.has(a.PassportNo));
-                        
                         apps.push(...newApps);
-                        
                         if (d.groups && Array.isArray(d.groups)) {
                             d.groups.forEach(g => { if (!groups.includes(g)) groups.push(g); });
                         }
-                        
-                        console.log('Merged, syncing to server...');
                         await sync();
-                        toast(\`Imported \${newApps.length} new applicants!\`, 'success');
-                    } catch (e) {
-                        console.error('Import error:', e);
-                        toast('Import failed: ' + e.message, 'error');
-                    }
+                        toast(\`Imported \${newApps.length} new!\`, 'success');
+                    } catch (e) { toast('Import failed!', 'error'); }
                 };
                 r.readAsText(f);
             };
@@ -373,72 +355,31 @@ app.get('/', (req, res) => {
 </html>`);
 });
 
-// API Endpoints
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', applicants: sharedData.applicants.length, groups: sharedData.groups.length });
 });
 
 app.get('/api/applicants', (req, res) => {
-  console.log('GET /api/applicants - sending', sharedData.applicants.length, 'applicants');
   res.json(sharedData);
 });
 
 app.post('/api/applicants/sync', (req, res) => {
   const { applicants, groups } = req.body;
-  console.log('POST /api/applicants/sync - received', applicants?.length || 0, 'applicants');
-  
-  if (!Array.isArray(applicants)) {
-    console.error('Invalid data - applicants not array');
-    return res.status(400).json({ error: 'Applicants must be an array' });
-  }
-  
-  const merged = new Map();
-  sharedData.applicants.forEach(a => { if (a.PassportNo) merged.set(a.PassportNo, a); });
-  applicants.forEach(a => { if (a.PassportNo) merged.set(a.PassportNo, a); });
-  
-  sharedData = {
-    applicants: Array.from(merged.values()),
-    groups: [...new Set([...sharedData.groups, ...(groups || [])])],
-    lastModified: new Date().toISOString()
-  };
-  
-  console.log('Synced - now have', sharedData.applicants.length, 'applicants');
-  res.json({ success: true, data: sharedData, stats: { totalApplicants: sharedData.applicants.length, totalGroups: sharedData.groups.length } });
-});
-
-app.put('/api/applicants', (req, res) => {
-  const { applicants, groups } = req.body;
   if (!Array.isArray(applicants)) return res.status(400).json({ error: 'Invalid' });
-  sharedData = { applicants: applicants || [], groups: groups || [], lastModified: new Date().toISOString() };
-  console.log('Replaced - now have', sharedData.applicants.length, 'applicants');
-  res.json({ success: true, data: sharedData });
+  
+  sharedData.applicants = applicants;
+  sharedData.groups = groups || [];
+  sharedData.lastModified = new Date().toISOString();
+  
+  res.json({ success: true, data: sharedData, stats: { totalApplicants: sharedData.applicants.length, totalGroups: sharedData.groups.length } });
 });
 
 app.delete('/api/applicants', (req, res) => {
   sharedData = { applicants: [], groups: [], lastModified: new Date().toISOString() };
-  console.log('Deleted all applicants');
-  res.json({ success: true, message: 'Deleted' });
-});
-
-app.get('/api/sync/status', (req, res) => {
-  res.json({ hasSyncedData: sharedData.applicants.length > 0, lastModified: sharedData.lastModified, applicantCount: sharedData.applicants.length, groupCount: sharedData.groups.length });
-});
-
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Server error' });
+  res.json({ success: true });
 });
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 BLS Dashboard + API running on 0.0.0.0:${PORT}`);
-  console.log(`📊 Applicants: ${sharedData.applicants.length}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 BLS Dashboard running on ${PORT}`);
 });
-
-const shutdown = () => {
-  server.close(() => process.exit(0));
-  setTimeout(() => process.exit(1), 10000);
-};
-
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
