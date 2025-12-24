@@ -5,9 +5,9 @@ const app = express();
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' })); // Increased for photos
 
-// Simple in-memory storage (single shared database - no auth)
+// Simple in-memory storage
 let sharedData = {
   applicants: [],
   groups: [],
@@ -32,44 +32,22 @@ app.get('/', (req, res) => {
         }
         .container { max-width: 1400px; margin: 0 auto; }
         .header {
-            background: white;
-            border-radius: 12px;
-            padding: 20px 30px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            background: white; border-radius: 12px; padding: 20px 30px;
+            margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex; justify-content: space-between; align-items: center;
         }
         .header h1 { color: #667eea; font-size: 24px; }
         .sync-status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 16px;
-            background: #f0f4ff;
-            border-radius: 8px;
-            font-size: 14px;
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 16px; background: #f0f4ff; border-radius: 8px; font-size: 14px;
         }
-        .sync-dot {
-            width: 10px; height: 10px;
-            border-radius: 50%;
-            background: #27ae60;
-            animation: pulse 2s infinite;
-        }
+        .sync-dot { width: 10px; height: 10px; border-radius: 50%; background: #27ae60; animation: pulse 2s infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-        .card {
-            background: white;
-            border-radius: 12px;
-            padding: 25px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
+        .card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .section-title { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: #2c3e50; }
         .btn {
             padding: 10px 20px; border: none; border-radius: 8px;
-            font-size: 14px; font-weight: 600; cursor: pointer;
-            transition: all 0.2s;
+            font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;
         }
         .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
         .btn-primary { background: #667eea; color: white; }
@@ -93,109 +71,49 @@ app.get('/', (req, res) => {
         th, td { text-align: left; padding: 12px; border-bottom: 1px solid #ecf0f1; }
         th { background: #f8f9fa; font-weight: 600; color: #2c3e50; }
         tr:hover { background: #f8f9fa; }
-        .photo-thumb {
-            width: 40px; height: 40px; border-radius: 50%;
-            object-fit: cover; border: 2px solid #667eea;
-        }
-        .no-photo {
-            width: 40px; height: 40px; border-radius: 50%;
-            background: #ecf0f1; display: flex;
-            align-items: center; justify-content: center;
-            color: #95a5a6; font-size: 18px;
-        }
+        .photo-thumb { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid #667eea; }
+        .no-photo { width: 40px; height: 40px; border-radius: 50%; background: #ecf0f1; display: flex; align-items: center; justify-content: center; color: #95a5a6; font-size: 18px; }
         .actions { display: flex; gap: 8px; }
-        .icon-btn {
-            padding: 6px 12px; background: transparent;
-            border: 1px solid #ecf0f1; border-radius: 6px;
-            cursor: pointer; transition: all 0.2s; font-size: 12px;
-        }
+        .icon-btn { padding: 6px 12px; background: transparent; border: 1px solid #ecf0f1; border-radius: 6px; cursor: pointer; transition: all 0.2s; font-size: 12px; }
         .icon-btn:hover { background: #f8f9fa; border-color: #667eea; }
-        .modal {
-            display: none; position: fixed; top: 0; left: 0;
-            width: 100%; height: 100%; background: rgba(0,0,0,0.5);
-            z-index: 1000; align-items: center; justify-content: center; padding: 20px;
-        }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
         .modal.active { display: flex; }
-        .modal-content {
-            background: white; border-radius: 12px;
-            width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto;
-        }
-        .modal-header {
-            padding: 20px 25px; border-bottom: 1px solid #ecf0f1;
-            display: flex; justify-content: space-between; align-items: center;
-        }
-        .close-btn {
-            background: none; border: none; font-size: 24px;
-            color: #95a5a6; cursor: pointer; width: 30px; height: 30px;
-        }
+        .modal-content { background: white; border-radius: 12px; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; }
+        .modal-header { padding: 20px 25px; border-bottom: 1px solid #ecf0f1; display: flex; justify-content: space-between; align-items: center; }
+        .close-btn { background: none; border: none; font-size: 24px; color: #95a5a6; cursor: pointer; width: 30px; height: 30px; }
         .close-btn:hover { background: #ecf0f1; border-radius: 50%; }
         .modal-body { padding: 25px; }
         .form-group { margin-bottom: 20px; }
-        .form-group label {
-            display: block; margin-bottom: 8px;
-            font-weight: 600; font-size: 14px;
-        }
-        .form-group input, .form-group select {
-            width: 100%; padding: 10px 12px;
-            border: 2px solid #ecf0f1; border-radius: 8px; font-size: 14px;
-        }
-        .form-group input:focus, .form-group select:focus {
-            outline: none; border-color: #667eea;
-        }
-        .modal-footer {
-            padding: 20px 25px; border-top: 1px solid #ecf0f1;
-            display: flex; gap: 10px; justify-content: flex-end;
-        }
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px; margin-bottom: 20px;
-        }
-        .stat-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white; padding: 20px; border-radius: 12px; text-align: center;
-        }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 14px; }
+        .form-group input, .form-group select { width: 100%; padding: 10px 12px; border: 2px solid #ecf0f1; border-radius: 8px; font-size: 14px; }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: #667eea; }
+        .modal-footer { padding: 20px 25px; border-top: 1px solid #ecf0f1; display: flex; gap: 10px; justify-content: flex-end; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; }
         .stat-card h3 { font-size: 32px; margin-bottom: 5px; }
         .stat-card p { font-size: 14px; opacity: 0.9; }
-        .toast {
-            position: fixed; bottom: 20px; right: 20px;
-            padding: 15px 20px; background: #2c3e50; color: white;
-            border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-            z-index: 2000; animation: slideIn 0.3s ease;
-        }
+        .toast { position: fixed; bottom: 20px; right: 20px; padding: 15px 20px; background: #2c3e50; color: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 2000; animation: slideIn 0.3s ease; }
         @keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         .toast.success { background: #27ae60; }
         .toast.error { background: #e74c3c; }
         .empty-state { text-align: center; padding: 60px 20px; color: #95a5a6; }
-        @media (max-width: 768px) {
-            .header { flex-direction: column; gap: 15px; }
-            .toolbar { flex-direction: column; }
-            table { font-size: 12px; }
-        }
+        @media (max-width: 768px) { .header { flex-direction: column; gap: 15px; } .toolbar { flex-direction: column; } table { font-size: 12px; } }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <div>
-                <h1>💼 BLS Applicant Manager</h1>
-                <small style="color: #7f8c8d;">Web Dashboard</small>
-            </div>
+            <div><h1>💼 BLS Applicant Manager</h1><small style="color: #7f8c8d;">Web Dashboard</small></div>
             <div style="display: flex; gap: 10px; align-items: center;">
-                <div class="sync-status">
-                    <div class="sync-dot"></div>
-                    <span>Connected</span>
-                </div>
+                <div class="sync-status"><div class="sync-dot"></div><span>Connected</span></div>
                 <button class="btn btn-warning" onclick="syncNow()">🔄 Sync</button>
             </div>
         </div>
-
         <div class="stats">
             <div class="stat-card"><h3 id="total-applicants">0</h3><p>Total Applicants</p></div>
             <div class="stat-card"><h3 id="total-groups">0</h3><p>Groups</p></div>
             <div class="stat-card"><h3 id="with-photos">0</h3><p>With Photos</p></div>
         </div>
-
         <div class="card">
             <div class="section-title">👥 Applicants Management</div>
             <div class="toolbar">
@@ -208,21 +126,15 @@ app.get('/', (req, res) => {
             <div class="groups-filter" id="groups-filter"></div>
             <div style="overflow-x: auto;">
                 <table>
-                    <thead>
-                        <tr><th>Photo</th><th>Name</th><th>Passport</th><th>DOB</th><th>Place</th><th>Group</th><th>Actions</th></tr>
-                    </thead>
+                    <thead><tr><th>Photo</th><th>Name</th><th>Passport</th><th>DOB</th><th>Place</th><th>Group</th><th>Actions</th></tr></thead>
                     <tbody id="tbody"><tr><td colspan="7"><div class="empty-state"><h3>Loading...</h3></div></td></tr></tbody>
                 </table>
             </div>
         </div>
     </div>
-
     <div id="modal" class="modal">
         <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="modal-title">Add Applicant</h2>
-                <button class="close-btn" onclick="closeModal()">&times;</button>
-            </div>
+            <div class="modal-header"><h2 id="modal-title">Add Applicant</h2><button class="close-btn" onclick="closeModal()">&times;</button></div>
             <div class="modal-body">
                 <div class="form-group"><label>Group</label><select id="fg"><option value="">No Group</option></select></div>
                 <div class="form-group"><label>First Name *</label><input type="text" id="ff"></div>
@@ -233,13 +145,9 @@ app.get('/', (req, res) => {
                 <div class="form-group"><label>Issue Place</label><input type="text" id="fi"></div>
                 <div class="form-group"><label>Photo (Max 200KB)</label><input type="file" id="fph" accept="image/*"><div id="prev"></div></div>
             </div>
-            <div class="modal-footer">
-                <button class="btn btn-danger" onclick="closeModal()">Cancel</button>
-                <button class="btn btn-success" onclick="saveApplicant()">Save</button>
-            </div>
+            <div class="modal-footer"><button class="btn btn-danger" onclick="closeModal()">Cancel</button><button class="btn btn-success" onclick="saveApplicant()">Save</button></div>
         </div>
     </div>
-
     <script>
         const API = window.location.origin;
         let apps = [], groups = [], editIdx = -1, filter = 'all';
@@ -361,14 +269,16 @@ app.get('/', (req, res) => {
         }
 
         async function del(i) {
-            if (!confirm('Delete?')) return;
+            if (!confirm('Delete this applicant?')) return;
+            console.log('Deleting applicant at index:', i);
             apps.splice(i, 1);
+            console.log('After delete, array length:', apps.length);
             await sync();
             toast('Deleted!', 'success');
         }
 
         async function deleteAll() {
-            if (!confirm('Delete ALL?')) return;
+            if (!confirm('Delete ALL applicants? Cannot be undone!')) return;
             apps = []; groups = [];
             await sync();
             toast('All deleted!', 'success');
@@ -376,16 +286,18 @@ app.get('/', (req, res) => {
 
         async function sync() {
             try {
+                console.log('Syncing to server:', apps.length, 'applicants');
                 const r = await fetch(API + '/api/applicants/sync', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ applicants: apps, groups })
                 });
                 const d = await r.json();
+                console.log('Server response:', d);
                 apps = d.data.applicants;
                 groups = d.data.groups;
                 render(); renderGroups(); updateStats();
-            } catch (e) { toast('Sync failed!', 'error'); }
+            } catch (e) { console.error('Sync error:', e); toast('Sync failed!', 'error'); }
         }
 
         async function syncNow() { await loadData(); toast('Synced!', 'success'); }
@@ -412,13 +324,34 @@ app.get('/', (req, res) => {
                 const r = new FileReader();
                 r.onload = async ev => {
                     try {
+                        console.log('Importing file...');
                         const d = JSON.parse(ev.target.result);
-                        if (!d.applicants) throw new Error('Invalid');
-                        apps.push(...d.applicants);
-                        if (d.groups) d.groups.forEach(g => { if (!groups.includes(g)) groups.push(g); });
+                        console.log('Parsed data:', d);
+                        
+                        if (!d.applicants || !Array.isArray(d.applicants)) {
+                            console.error('Invalid format - no applicants array');
+                            throw new Error('Invalid file format - missing applicants array');
+                        }
+                        
+                        console.log('Valid data, merging...');
+                        
+                        // Merge applicants without duplicates
+                        const existingPassports = new Set(apps.map(a => a.PassportNo));
+                        const newApps = d.applicants.filter(a => !existingPassports.has(a.PassportNo));
+                        
+                        apps.push(...newApps);
+                        
+                        if (d.groups && Array.isArray(d.groups)) {
+                            d.groups.forEach(g => { if (!groups.includes(g)) groups.push(g); });
+                        }
+                        
+                        console.log('Merged, syncing to server...');
                         await sync();
-                        toast(\`Imported \${d.applicants.length}!\`, 'success');
-                    } catch (e) { toast('Import failed!', 'error'); }
+                        toast(\`Imported \${newApps.length} new applicants!\`, 'success');
+                    } catch (e) {
+                        console.error('Import error:', e);
+                        toast('Import failed: ' + e.message, 'error');
+                    }
                 };
                 r.readAsText(f);
             };
@@ -446,12 +379,18 @@ app.get('/api/health', (req, res) => {
 });
 
 app.get('/api/applicants', (req, res) => {
+  console.log('GET /api/applicants - sending', sharedData.applicants.length, 'applicants');
   res.json(sharedData);
 });
 
 app.post('/api/applicants/sync', (req, res) => {
   const { applicants, groups } = req.body;
-  if (!Array.isArray(applicants)) return res.status(400).json({ error: 'Applicants must be an array' });
+  console.log('POST /api/applicants/sync - received', applicants?.length || 0, 'applicants');
+  
+  if (!Array.isArray(applicants)) {
+    console.error('Invalid data - applicants not array');
+    return res.status(400).json({ error: 'Applicants must be an array' });
+  }
   
   const merged = new Map();
   sharedData.applicants.forEach(a => { if (a.PassportNo) merged.set(a.PassportNo, a); });
@@ -463,7 +402,7 @@ app.post('/api/applicants/sync', (req, res) => {
     lastModified: new Date().toISOString()
   };
   
-  console.log(`✅ Synced: ${sharedData.applicants.length} applicants`);
+  console.log('Synced - now have', sharedData.applicants.length, 'applicants');
   res.json({ success: true, data: sharedData, stats: { totalApplicants: sharedData.applicants.length, totalGroups: sharedData.groups.length } });
 });
 
@@ -471,11 +410,13 @@ app.put('/api/applicants', (req, res) => {
   const { applicants, groups } = req.body;
   if (!Array.isArray(applicants)) return res.status(400).json({ error: 'Invalid' });
   sharedData = { applicants: applicants || [], groups: groups || [], lastModified: new Date().toISOString() };
+  console.log('Replaced - now have', sharedData.applicants.length, 'applicants');
   res.json({ success: true, data: sharedData });
 });
 
 app.delete('/api/applicants', (req, res) => {
   sharedData = { applicants: [], groups: [], lastModified: new Date().toISOString() };
+  console.log('Deleted all applicants');
   res.json({ success: true, message: 'Deleted' });
 });
 
