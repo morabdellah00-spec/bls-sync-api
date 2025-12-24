@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const crypto = require('crypto');
 const path = require('path');
 
 const app = express();
@@ -8,6 +7,13 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+// Simple in-memory storage (single shared database - no auth)
+let sharedData = {
+  applicants: [],
+  groups: [],
+  lastModified: new Date().toISOString()
+};
 
 // Serve dashboard as homepage
 app.get('/', (req, res) => {
@@ -20,168 +26,157 @@ app.get('/', (req, res) => {
     });
   }
   
-  // Otherwise serve the dashboard
-  res.sendFile(path.join(__dirname, 'dashboard.html'));
+  // Otherwise serve a simple status page
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>BLS Sync API</title>
+      <style>
+        body {
+          font-family: system-ui, -apple-system, sans-serif;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
+          margin: 0;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .container {
+          background: white;
+          padding: 40px;
+          border-radius: 12px;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+          text-align: center;
+        }
+        h1 { color: #667eea; margin: 0 0 10px 0; }
+        .stats { color: #7f8c8d; font-size: 14px; }
+        .badge { 
+          display: inline-block;
+          background: #27ae60;
+          color: white;
+          padding: 6px 12px;
+          border-radius: 20px;
+          font-size: 12px;
+          margin-top: 20px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>🚀 BLS Sync API</h1>
+        <div class="stats">
+          <p>Applicants: ${sharedData.applicants.length}</p>
+          <p>Groups: ${sharedData.groups.length}</p>
+          <p>Last Modified: ${new Date(sharedData.lastModified).toLocaleString()}</p>
+        </div>
+        <div class="badge">✅ Online</div>
+      </div>
+    </body>
+    </html>
+  `);
 });
-
-// In-memory storage
-const users = new Map();
-const applicantData = new Map();
-
-// Generate API key
-function generateApiKey() {
-  return crypto.randomBytes(32).toString('hex');
-}
-
-// Middleware to verify API key
-function verifyApiKey(req, res, next) {
-  const apiKey = req.headers['x-api-key'];
-  
-  if (!apiKey) {
-    return res.status(401).json({ error: 'API key required' });
-  }
-  
-  const user = Array.from(users.values()).find(u => u.apiKey === apiKey);
-  if (!user) {
-    return res.status(401).json({ error: 'Invalid API key' });
-  }
-  
-  req.userId = user.id;
-  next();
-}
 
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'ok', 
     service: 'BLS Applicant Manager Sync API',
-    version: '1.0.0'
+    version: '1.0.0',
+    applicants: sharedData.applicants.length,
+    groups: sharedData.groups.length
   });
 });
 
-// Register/Login
-app.post('/api/auth/register', (req, res) => {
-  const { email, password } = req.body;
-  
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password required' });
-  }
-  
-  const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
-  let user = Array.from(users.values()).find(u => u.email === email);
-  
-  if (user) {
-    if (user.passwordHash !== passwordHash) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-  } else {
-    const userId = crypto.randomUUID();
-    const apiKey = generateApiKey();
-    
-    user = {
-      id: userId,
-      email,
-      passwordHash,
-      apiKey,
-      createdAt: new Date().toISOString()
-    };
-    
-    users.set(userId, user);
-  }
-  
-  res.json({
-    apiKey: user.apiKey,
-    userId: user.id,
-    email: user.email
-  });
-});
-
-// Get all applicants
-app.get('/api/applicants', verifyApiKey, (req, res) => {
-  const data = applicantData.get(req.userId) || { applicants: [], groups: [] };
-  res.json(data);
+// Get all applicants (no auth required)
+app.get('/api/applicants', (req, res) => {
+  res.json(sharedData);
 });
 
 // Sync applicants (merge strategy)
-app.post('/api/applicants/sync', verifyApiKey, (req, res) => {
+app.post('/api/applicants/sync', (req, res) => {
   const { applicants, groups } = req.body;
   
   if (!Array.isArray(applicants)) {
     return res.status(400).json({ error: 'Applicants must be an array' });
   }
   
-  const existingData = applicantData.get(req.userId) || { 
-    applicants: [], 
-    groups: [],
-    lastModified: new Date().toISOString()
-  };
-  
+  // Merge applicants (keep latest version based on passport)
   const mergedApplicants = new Map();
   
-  existingData.applicants.forEach(app => {
+  // Add existing applicants
+  sharedData.applicants.forEach(app => {
     if (app.PassportNo) {
       mergedApplicants.set(app.PassportNo, app);
     }
   });
   
+  // Merge with incoming applicants
   applicants.forEach(app => {
     if (app.PassportNo) {
       mergedApplicants.set(app.PassportNo, app);
     }
   });
   
+  // Merge groups
   const mergedGroups = Array.from(new Set([
-    ...(existingData.groups || []),
+    ...sharedData.groups,
     ...(groups || [])
   ]));
   
-  const updatedData = {
+  sharedData = {
     applicants: Array.from(mergedApplicants.values()),
     groups: mergedGroups,
     lastModified: new Date().toISOString()
   };
   
-  applicantData.set(req.userId, updatedData);
+  console.log(`✅ Synced: ${sharedData.applicants.length} applicants, ${sharedData.groups.length} groups`);
   
   res.json({
     success: true,
-    data: updatedData,
+    data: sharedData,
     stats: {
-      totalApplicants: updatedData.applicants.length,
-      totalGroups: updatedData.groups.length
+      totalApplicants: sharedData.applicants.length,
+      totalGroups: sharedData.groups.length
     }
   });
 });
 
 // Replace all applicants (full sync)
-app.put('/api/applicants', verifyApiKey, (req, res) => {
+app.put('/api/applicants', (req, res) => {
   const { applicants, groups } = req.body;
   
   if (!Array.isArray(applicants)) {
     return res.status(400).json({ error: 'Applicants must be an array' });
   }
   
-  const data = {
-    applicants,
+  sharedData = {
+    applicants: applicants || [],
     groups: groups || [],
     lastModified: new Date().toISOString()
   };
   
-  applicantData.set(req.userId, data);
+  console.log(`✅ Replaced: ${sharedData.applicants.length} applicants, ${sharedData.groups.length} groups`);
   
   res.json({
     success: true,
-    data,
+    data: sharedData,
     stats: {
-      totalApplicants: data.applicants.length,
-      totalGroups: data.groups.length
+      totalApplicants: sharedData.applicants.length,
+      totalGroups: sharedData.groups.length
     }
   });
 });
 
 // Delete all applicants
-app.delete('/api/applicants', verifyApiKey, (req, res) => {
-  applicantData.delete(req.userId);
+app.delete('/api/applicants', (req, res) => {
+  sharedData = {
+    applicants: [],
+    groups: [],
+    lastModified: new Date().toISOString()
+  };
+  
+  console.log('✅ Deleted all applicants');
   
   res.json({
     success: true,
@@ -190,14 +185,12 @@ app.delete('/api/applicants', verifyApiKey, (req, res) => {
 });
 
 // Get sync status
-app.get('/api/sync/status', verifyApiKey, (req, res) => {
-  const data = applicantData.get(req.userId);
-  
+app.get('/api/sync/status', (req, res) => {
   res.json({
-    hasSyncedData: !!data,
-    lastModified: data?.lastModified || null,
-    applicantCount: data?.applicants?.length || 0,
-    groupCount: data?.groups?.length || 0
+    hasSyncedData: sharedData.applicants.length > 0,
+    lastModified: sharedData.lastModified,
+    applicantCount: sharedData.applicants.length,
+    groupCount: sharedData.groups.length
   });
 });
 
@@ -213,6 +206,8 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 // Start server
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 BLS Sync API running on 0.0.0.0:${PORT}`);
+  console.log(`📊 Applicants: ${sharedData.applicants.length}`);
+  console.log(`📁 Groups: ${sharedData.groups.length}`);
 });
 
 // Handle graceful shutdown
