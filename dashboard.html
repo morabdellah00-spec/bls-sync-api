@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BLS Applicant Manager - Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 20px 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            color: #667eea;
+            font-size: 24px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .sync-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: #f0f4ff;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .sync-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #27ae60;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5568d3; }
+        
+        .btn-success { background: #27ae60; color: white; }
+        .btn-success:hover { background: #229954; }
+        
+        .btn-danger { background: #e74c3c; color: white; }
+        .btn-danger:hover { background: #c0392b; }
+        
+        .btn-warning { background: #f39c12; color: white; }
+        .btn-warning:hover { background: #e67e22; }
+
+        .btn-secondary { background: #95a5a6; color: white; }
+        .btn-secondary:hover { background: #7f8c8d; }
+
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px 15px;
+            border: 2px solid #ecf0f1;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .groups-filter {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .group-badge {
+            padding: 8px 16px;
+            background: #ecf0f1;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .group-badge:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-1px);
+        }
+
+        .group-badge.active {
+            background: #667eea;
+            color: white;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .photo-thumb {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #667eea;
+        }
+
+        .no-photo {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #ecf0f1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #95a5a6;
+            font-size: 18px;
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .icon-btn {
+            padding: 6px 12px;
+            background: transparent;
+            border: 1px solid #ecf0f1;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 12px;
+        }
+
+        .icon-btn:hover {
+            background: #f8f9fa;
+            border-color: #667eea;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            padding: 20px 25px;
+            border-bottom: 1px solid #ecf0f1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            font-size: 20px;
+            color: #2c3e50;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #95a5a6;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+        }
+
+        .close-btn:hover {
+            background: #ecf0f1;
+            color: #2c3e50;
+        }
+
+        .modal-body {
+            padding: 25px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            color: #2c3e50;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #ecf0f1;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .modal-footer {
+            padding: 20px 25px;
+            border-top: 1px solid #ecf0f1;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            font-size: 32px;
+            margin-bottom: 5px;
+        }
+
+        .stat-card p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            background: #2c3e50;
+            color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 2000;
+            animation: slideIn 0.3s ease;
+            max-width: 300px;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .toast.success { background: #27ae60; }
+        .toast.error { background: #e74c3c; }
+        .toast.warning { background: #f39c12; }
+
+        /* Login Screen */
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-card {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .login-card h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .login-card p {
+            text-align: center;
+            color: #7f8c8d;
+            margin-bottom: 30px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #95a5a6;
+        }
+
+        .empty-state h3 {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .stats {
+                grid-template-columns: 1fr;
+            }
+
+            .toolbar {
+                flex-direction: column;
+            }
+
+            .search-box {
+                width: 100%;
+            }
+
+            table {
+                font-size: 12px;
+            }
+
+            th, td {
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="login-screen" class="login-container">
+        <div class="login-card">
+            <h1>🔐 BLS Applicant Manager</h1>
+            <p>Login to access your dashboard</p>
+            
+            <div class="form-group">
+                <label>API URL</label>
+                <input type="url" id="login-api-url" placeholder="https://your-api.railway.app" value="https://bls-sync-api-production.up.railway.app">
+            </div>
+
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="login-email" placeholder="your-email@example.com">
+            </div>
+
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="login-password" placeholder="Enter your password">
+            </div>
+
+            <button class="btn btn-primary" style="width: 100%; margin-bottom: 10px;" onclick="login()">
+                Login
+            </button>
+
+            <button class="btn btn-secondary" style="width: 100%;" onclick="register()">
+                Register New Account
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div id="dashboard" style="display: none;">
+        <div class="container">
+            <!-- Header -->
+            <div class="header">
+                <div>
+                    <h1>💼 BLS Applicant Manager</h1>
+                    <small id="user-email" style="color: #7f8c8d;"></small>
+                </div>
+                <div class="header-actions">
+                    <div class="sync-status">
+                        <div class="sync-dot"></div>
+                        <span id="sync-status-text">Connected</span>
+                    </div>
+                    <button class="btn btn-warning" onclick="syncNow()">🔄 Sync Now</button>
+                    <button class="btn btn-danger" onclick="logout()">Logout</button>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats">
+                <div class="stat-card">
+                    <h3 id="total-applicants">0</h3>
+                    <p>Total Applicants</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="total-groups">0</h3>
+                    <p>Groups</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="with-photos">0</h3>
+                    <p>With Photos</p>
+                </div>
+            </div>
+
+            <!-- Main Card -->
+            <div class="card">
+                <div class="section-title">
+                    👥 Applicants Management
+                </div>
+
+                <!-- Toolbar -->
+                <div class="toolbar">
+                    <input type="text" class="search-box" id="search" placeholder="🔍 Search by name, passport..." oninput="filterApplicants()">
+                    <button class="btn btn-success" onclick="showAddModal()">➕ Add Applicant</button>
+                    <button class="btn btn-primary" onclick="importData()">📤 Import</button>
+                    <button class="btn btn-warning" onclick="exportData()">💾 Export</button>
+                    <button class="btn btn-danger" onclick="deleteAll()">🗑️ Delete All</button>
+                </div>
+
+                <!-- Groups Filter -->
+                <div class="groups-filter" id="groups-filter">
+                    <!-- Groups will be added dynamically -->
+                </div>
+
+                <!-- Table -->
+                <div style="overflow-x: auto;">
+                    <table id="applicants-table">
+                        <thead>
+                            <tr>
+                                <th>Photo</th>
+                                <th>Name</th>
+                                <th>Passport</th>
+                                <th>Date of Birth</th>
+                                <th>Place of Birth</th>
+                                <th>Group</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="applicants-tbody">
+                            <tr>
+                                <td colspan="7">
+                                    <div class="empty-state">
+                                        <h3>No applicants yet</h3>
+                                        <p>Click "Add Applicant" to get started</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Applicant Modal -->
+    <div id="applicant-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Add New Applicant</h2>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Group</label>
+                    <select id="form-group">
+                        <option value="">No Group</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>First Name *</label>
+                    <input type="text" id="form-firstname" placeholder="Enter first name">
+                </div>
+
+                <div class="form-group">
+                    <label>Last Name *</label>
+                    <input type="text" id="form-lastname" placeholder="Enter last name">
+                </div>
+
+                <div class="form-group">
+                    <label>Passport Number *</label>
+                    <input type="text" id="form-passport" placeholder="Enter passport number">
+                </div>
+
+                <div class="form-group">
+                    <label>Date of Birth</label>
+                    <input type="date" id="form-dateofbirth">
+                </div>
+
+                <div class="form-group">
+                    <label>Place of Birth</label>
+                    <input type="text" id="form-placeofbirth" placeholder="e.g., CASABLANCA">
+                </div>
+
+                <div class="form-group">
+                    <label>Issue Place</label>
+                    <input type="text" id="form-issueplace" placeholder="e.g., CASABLANCA">
+                </div>
+
+                <div class="form-group">
+                    <label>Photo (Max 200KB)</label>
+                    <input type="file" id="form-photo" accept="image/jpeg,image/jpg,image/png">
+                    <div id="photo-preview" style="margin-top: 10px;"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-success" onclick="saveApplicant()">Save Applicant</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global Variables
+        let apiUrl = '';
+        let apiKey = '';
+        let userEmail = '';
+        let applicants = [];
+        let groups = [];
+        let editingIndex = -1;
+        let activeFilter = 'all';
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAuth();
+        });
+
+        function checkAuth() {
+            const saved = localStorage.getItem('bls_auth');
+            if (saved) {
+                const auth = JSON.parse(saved);
+                apiUrl = auth.apiUrl;
+                apiKey = auth.apiKey;
+                userEmail = auth.email;
+                showDashboard();
+            }
+        }
+
+        async function login() {
+            const url = document.getElementById('login-api-url').value.trim();
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value;
+
+            if (!url || !email || !password) {
+                showToast('Please fill all fields', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${url}/api/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                if (!response.ok) throw new Error('Login failed');
+
+                const data = await response.json();
+                
+                apiUrl = url;
+                apiKey = data.apiKey;
+                userEmail = email;
+
+                localStorage.setItem('bls_auth', JSON.stringify({ apiUrl, apiKey, email }));
+                
+                showToast('Login successful!', 'success');
+                showDashboard();
+            } catch (error) {
+                showToast('Login failed: ' + error.message, 'error');
+            }
+        }
+
+        async function register() {
+            await login(); // Same endpoint handles both
+        }
+
+        function logout() {
+            localStorage.removeItem('bls_auth');
+            location.reload();
+        }
+
+        function showDashboard() {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+            document.getElementById('user-email').textContent = userEmail;
+            loadData();
+        }
+
+        async function loadData() {
+            try {
+                const response = await fetch(`${apiUrl}/api/applicants`, {
+                    headers: { 'x-api-key': apiKey }
+                });
+
+                if (!response.ok) throw new Error('Failed to load data');
+
+                const data = await response.json();
+                applicants = data.applicants || [];
+                groups = data.groups || [];
+
+                renderApplicants();
+                renderGroups();
+                updateStats();
+            } catch (error) {
+                showToast('Failed to load data: ' + error.message, 'error');
+            }
+        }
+
+        function renderApplicants() {
+            const tbody = document.getElementById('applicants-tbody');
+            const searchTerm = document.getElementById('search').value.toLowerCase();
+
+            let filtered = applicants.filter(app => {
+                const matchesSearch = 
+                    app.FirstName?.toLowerCase().includes(searchTerm) ||
+                    app.LastName?.toLowerCase().includes(searchTerm) ||
+                    app.PassportNo?.toLowerCase().includes(searchTerm);
+
+                const matchesGroup = activeFilter === 'all' || app.group === activeFilter;
+
+                return matchesSearch && matchesGroup;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7">
+                            <div class="empty-state">
+                                <h3>No applicants found</h3>
+                                <p>Try adjusting your search or filter</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map((app, index) => {
+                const actualIndex = applicants.indexOf(app);
+                const photoHtml = app.photo
+                    ? `<img src="${app.photo}" class="photo-thumb" alt="${app.FirstName}">`
+                    : `<div class="no-photo">👤</div>`;
+
+                return `
+                    <tr>
+                        <td>${photoHtml}</td>
+                        <td><strong>${app.FirstName || ''} ${app.LastName || ''}</strong></td>
+                        <td>${app.PassportNo || 'N/A'}</td>
+                        <td>${app.DateOfBirth || 'N/A'}</td>
+                        <td>${app.PlaceOfBirth || 'N/A'}</td>
+                        <td><span class="group-badge">${app.group || 'No Group'}</span></td>
+                        <td>
+                            <div class="actions">
+                                <button class="icon-btn" onclick="editApplicant(${actualIndex})">✏️ Edit</button>
+                                <button class="icon-btn" onclick="deleteApplicant(${actualIndex})">🗑️</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderGroups() {
+            const container = document.getElementById('groups-filter');
+            const groupCounts = { all: applicants.length };
+
+            applicants.forEach(app => {
+                const group = app.group || '';
+                if (group) {
+                    groupCounts[group] = (groupCounts[group] || 0) + 1;
+                }
+            });
+
+            let html = `
+                <div class="group-badge ${activeFilter === 'all' ? 'active' : ''}" onclick="filterByGroup('all')">
+                    All (${groupCounts.all})
+                </div>
+            `;
+
+            groups.forEach(group => {
+                const count = groupCounts[group] || 0;
+                html += `
+                    <div class="group-badge ${activeFilter === group ? 'active' : ''}" onclick="filterByGroup('${group}')">
+                        ${group} (${count})
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+
+            // Update group select in form
+            const groupSelect = document.getElementById('form-group');
+            groupSelect.innerHTML = '<option value="">No Group</option>';
+            groups.forEach(group => {
+                groupSelect.innerHTML += `<option value="${group}">${group}</option>`;
+            });
+        }
+
+        function filterByGroup(group) {
+            activeFilter = group;
+            renderApplicants();
+            renderGroups();
+        }
+
+        function filterApplicants() {
+            renderApplicants();
+        }
+
+        function updateStats() {
+            document.getElementById('total-applicants').textContent = applicants.length;
+            document.getElementById('total-groups').textContent = groups.length;
+            document.getElementById('with-photos').textContent = applicants.filter(a => a.photo).length;
+        }
+
+        function showAddModal() {
+            editingIndex = -1;
+            document.getElementById('modal-title').textContent = 'Add New Applicant';
+            document.getElementById('form-firstname').value = '';
+            document.getElementById('form-lastname').value = '';
+            document.getElementById('form-passport').value = '';
+            document.getElementById('form-dateofbirth').value = '';
+            document.getElementById('form-placeofbirth').value = '';
+            document.getElementById('form-issueplace').value = '';
+            document.getElementById('form-group').value = '';
+            document.getElementById('form-photo').value = '';
+            document.getElementById('photo-preview').innerHTML = '';
+            document.getElementById('applicant-modal').classList.add('active');
+        }
+
+        function editApplicant(index) {
+            editingIndex = index;
+            const app = applicants[index];
+            
+            document.getElementById('modal-title').textContent = 'Edit Applicant';
+            document.getElementById('form-firstname').value = app.FirstName || '';
+            document.getElementById('form-lastname').value = app.LastName || '';
+            document.getElementById('form-passport').value = app.PassportNo || '';
+            document.getElementById('form-dateofbirth').value = app.DateOfBirth || '';
+            document.getElementById('form-placeofbirth').value = app.PlaceOfBirth || '';
+            document.getElementById('form-issueplace').value = app.IssuePlace || '';
+            document.getElementById('form-group').value = app.group || '';
+            
+            if (app.photo) {
+                document.getElementById('photo-preview').innerHTML = 
+                    `<img src="${app.photo}" style="max-width: 150px; border-radius: 8px;">`;
+            }
+            
+            document.getElementById('applicant-modal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('applicant-modal').classList.remove('active');
+        }
+
+        document.getElementById('form-photo').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (file.size > 200 * 1024) {
+                showToast('Photo too large! Max 200KB', 'error');
+                e.target.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                document.getElementById('photo-preview').innerHTML = 
+                    `<img src="${ev.target.result}" style="max-width: 150px; border-radius: 8px;">`;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        async function saveApplicant() {
+            const firstName = document.getElementById('form-firstname').value.trim();
+            const lastName = document.getElementById('form-lastname').value.trim();
+            const passport = document.getElementById('form-passport').value.trim();
+
+            if (!firstName || !lastName || !passport) {
+                showToast('Please fill required fields!', 'error');
+                return;
+            }
+
+            const photoFile = document.getElementById('form-photo').files[0];
+            let photoData = null;
+
+            if (photoFile) {
+                photoData = await readFileAsDataURL(photoFile);
+            } else if (editingIndex >= 0) {
+                photoData = applicants[editingIndex].photo;
+            }
+
+            const applicantData = {
+                group: document.getElementById('form-group').value,
+                FirstName: firstName,
+                LastName: lastName,
+                PassportNo: passport,
+                DateOfBirth: document.getElementById('form-dateofbirth').value,
+                PlaceOfBirth: document.getElementById('form-placeofbirth').value,
+                IssuePlace: document.getElementById('form-issueplace').value,
+                photo: photoData
+            };
+
+            if (editingIndex >= 0) {
+                applicants[editingIndex] = applicantData;
+            } else {
+                applicants.push(applicantData);
+            }
+
+            // Add new group if entered
+            if (applicantData.group && !groups.includes(applicantData.group)) {
+                groups.push(applicantData.group);
+            }
+
+            await syncToServer();
+            closeModal();
+            showToast('Applicant saved!', 'success');
+        }
+
+        function readFileAsDataURL(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function deleteApplicant(index) {
+            if (!confirm('Delete this applicant?')) return;
+
+            applicants.splice(index, 1);
+            await syncToServer();
+            showToast('Applicant deleted!', 'success');
+        }
+
+        async function deleteAll() {
+            if (!confirm('Delete ALL applicants? This cannot be undone!')) return;
+
+            applicants = [];
+            groups = [];
+            await syncToServer();
+            showToast('All applicants deleted!', 'success');
+        }
+
+        async function syncToServer() {
+            try {
+                const response = await fetch(`${apiUrl}/api/applicants/sync`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': apiKey
+                    },
+                    body: JSON.stringify({ applicants, groups })
+                });
+
+                if (!response.ok) throw new Error('Sync failed');
+
+                const result = await response.json();
+                applicants = result.data.applicants;
+                groups = result.data.groups;
+
+                renderApplicants();
+                renderGroups();
+                updateStats();
+            } catch (error) {
+                showToast('Sync failed: ' + error.message, 'error');
+            }
+        }
+
+        async function syncNow() {
+            await loadData();
+            showToast('Synced successfully!', 'success');
+        }
+
+        function exportData() {
+            const dataStr = JSON.stringify({ applicants, groups }, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `bls-applicants-${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+            showToast('Exported successfully!', 'success');
+        }
+
+        function importData() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'application/json';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    try {
+                        const data = JSON.parse(event.target.result);
+                        
+                        if (!data.applicants || !Array.isArray(data.applicants)) {
+                            throw new Error('Invalid file format');
+                        }
+
+                        applicants.push(...data.applicants);
+                        
+                        if (data.groups && Array.isArray(data.groups)) {
+                            data.groups.forEach(group => {
+                                if (!groups.includes(group)) {
+                                    groups.push(group);
+                                }
+                            });
+                        }
+
+                        await syncToServer();
+                        showToast(`Imported ${data.applicants.length} applicants!`, 'success');
+                    } catch (error) {
+                        showToast('Import failed: ' + error.message, 'error');
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
