@@ -116,9 +116,6 @@
         .btn-warning { background: #f39c12; color: white; }
         .btn-warning:hover { background: #e67e22; }
 
-        .btn-secondary { background: #95a5a6; color: white; }
-        .btn-secondary:hover { background: #7f8c8d; }
-
         .toolbar {
             display: flex;
             gap: 10px;
@@ -231,7 +228,6 @@
             border-color: #667eea;
         }
 
-        /* Modal Styles */
         .modal {
             display: none;
             position: fixed;
@@ -387,36 +383,6 @@
         .toast.error { background: #e74c3c; }
         .toast.warning { background: #f39c12; }
 
-        /* Login Screen */
-        .login-container {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-
-        .login-card {
-            background: white;
-            border-radius: 16px;
-            padding: 40px;
-            max-width: 400px;
-            width: 100%;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        }
-
-        .login-card h1 {
-            text-align: center;
-            color: #667eea;
-            margin-bottom: 10px;
-        }
-
-        .login-card p {
-            text-align: center;
-            color: #7f8c8d;
-            margin-bottom: 30px;
-        }
-
         .empty-state {
             text-align: center;
             padding: 60px 20px;
@@ -457,118 +423,81 @@
     </style>
 </head>
 <body>
-    <!-- Login Screen -->
-    <div id="login-screen" class="login-container">
-        <div class="login-card">
-            <h1>🔐 BLS Applicant Manager</h1>
-            <p>Login to access your dashboard</p>
-            
-            <div class="form-group">
-                <label>API URL</label>
-                <input type="url" id="login-api-url" placeholder="https://your-api.railway.app" value="https://bls-sync-api-production.up.railway.app">
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div>
+                <h1>💼 BLS Applicant Manager</h1>
+                <small style="color: #7f8c8d;">Professional Dashboard</small>
             </div>
-
-            <div class="form-group">
-                <label>Email</label>
-                <input type="email" id="login-email" placeholder="your-email@example.com">
+            <div class="header-actions">
+                <div class="sync-status">
+                    <div class="sync-dot"></div>
+                    <span id="sync-status-text">Ready</span>
+                </div>
+                <button class="btn btn-warning" onclick="syncNow()">🔄 Sync</button>
             </div>
-
-            <div class="form-group">
-                <label>Password</label>
-                <input type="password" id="login-password" placeholder="Enter your password">
-            </div>
-
-            <button class="btn btn-primary" style="width: 100%; margin-bottom: 10px;" onclick="login()">
-                Login
-            </button>
-
-            <button class="btn btn-secondary" style="width: 100%;" onclick="register()">
-                Register New Account
-            </button>
         </div>
-    </div>
 
-    <!-- Main Dashboard -->
-    <div id="dashboard" style="display: none;">
-        <div class="container">
-            <!-- Header -->
-            <div class="header">
-                <div>
-                    <h1>💼 BLS Applicant Manager</h1>
-                    <small id="user-email" style="color: #7f8c8d;"></small>
-                </div>
-                <div class="header-actions">
-                    <div class="sync-status">
-                        <div class="sync-dot"></div>
-                        <span id="sync-status-text">Connected</span>
-                    </div>
-                    <button class="btn btn-warning" onclick="syncNow()">🔄 Sync Now</button>
-                    <button class="btn btn-danger" onclick="logout()">Logout</button>
-                </div>
+        <!-- Stats -->
+        <div class="stats">
+            <div class="stat-card">
+                <h3 id="total-applicants">0</h3>
+                <p>Total Applicants</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="total-groups">0</h3>
+                <p>Groups</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="with-photos">0</h3>
+                <p>With Photos</p>
+            </div>
+        </div>
+
+        <!-- Main Card -->
+        <div class="card">
+            <div class="section-title">
+                👥 Applicants Management
             </div>
 
-            <!-- Stats -->
-            <div class="stats">
-                <div class="stat-card">
-                    <h3 id="total-applicants">0</h3>
-                    <p>Total Applicants</p>
-                </div>
-                <div class="stat-card">
-                    <h3 id="total-groups">0</h3>
-                    <p>Groups</p>
-                </div>
-                <div class="stat-card">
-                    <h3 id="with-photos">0</h3>
-                    <p>With Photos</p>
-                </div>
+            <!-- Toolbar -->
+            <div class="toolbar">
+                <input type="text" class="search-box" id="search" placeholder="🔍 Search by name, passport..." oninput="filterApplicants()">
+                <button class="btn btn-success" onclick="showAddModal()">➕ Add Applicant</button>
+                <button class="btn btn-primary" onclick="importData()">📤 Import</button>
+                <button class="btn btn-warning" onclick="exportData()">💾 Export</button>
+                <button class="btn btn-danger" onclick="deleteAll()">🗑️ Delete All</button>
             </div>
 
-            <!-- Main Card -->
-            <div class="card">
-                <div class="section-title">
-                    👥 Applicants Management
-                </div>
+            <!-- Groups Filter -->
+            <div class="groups-filter" id="groups-filter"></div>
 
-                <!-- Toolbar -->
-                <div class="toolbar">
-                    <input type="text" class="search-box" id="search" placeholder="🔍 Search by name, passport..." oninput="filterApplicants()">
-                    <button class="btn btn-success" onclick="showAddModal()">➕ Add Applicant</button>
-                    <button class="btn btn-primary" onclick="importData()">📤 Import</button>
-                    <button class="btn btn-warning" onclick="exportData()">💾 Export</button>
-                    <button class="btn btn-danger" onclick="deleteAll()">🗑️ Delete All</button>
-                </div>
-
-                <!-- Groups Filter -->
-                <div class="groups-filter" id="groups-filter">
-                    <!-- Groups will be added dynamically -->
-                </div>
-
-                <!-- Table -->
-                <div style="overflow-x: auto;">
-                    <table id="applicants-table">
-                        <thead>
-                            <tr>
-                                <th>Photo</th>
-                                <th>Name</th>
-                                <th>Passport</th>
-                                <th>Date of Birth</th>
-                                <th>Place of Birth</th>
-                                <th>Group</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="applicants-tbody">
-                            <tr>
-                                <td colspan="7">
-                                    <div class="empty-state">
-                                        <h3>No applicants yet</h3>
-                                        <p>Click "Add Applicant" to get started</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+            <!-- Table -->
+            <div style="overflow-x: auto;">
+                <table id="applicants-table">
+                    <thead>
+                        <tr>
+                            <th>Photo</th>
+                            <th>Name</th>
+                            <th>Passport</th>
+                            <th>Date of Birth</th>
+                            <th>Place of Birth</th>
+                            <th>Group</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="applicants-tbody">
+                        <tr>
+                            <td colspan="7">
+                                <div class="empty-state">
+                                    <h3>No applicants yet</h3>
+                                    <p>Click "Add Applicant" to get started</p>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -625,17 +554,15 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-danger" onclick="closeModal()">Cancel</button>
                 <button class="btn btn-success" onclick="saveApplicant()">Save Applicant</button>
             </div>
         </div>
     </div>
 
     <script>
-        // Global Variables
-        let apiUrl = '';
-        let apiKey = '';
-        let userEmail = '';
+        // Global Variables - Using localStorage directly (no authentication needed)
+        const STORAGE_KEY = 'bls_applicants_data';
         let applicants = [];
         let groups = [];
         let editingIndex = -1;
@@ -643,88 +570,24 @@
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
-            checkAuth();
+            loadData();
         });
 
-        function checkAuth() {
-            const saved = localStorage.getItem('bls_auth');
+        function loadData() {
+            const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
-                const auth = JSON.parse(saved);
-                apiUrl = auth.apiUrl;
-                apiKey = auth.apiKey;
-                userEmail = auth.email;
-                showDashboard();
-            }
-        }
-
-        async function login() {
-            const url = document.getElementById('login-api-url').value.trim();
-            const email = document.getElementById('login-email').value.trim();
-            const password = document.getElementById('login-password').value;
-
-            if (!url || !email || !password) {
-                showToast('Please fill all fields', 'error');
-                return;
-            }
-
-            try {
-                const response = await fetch(`${url}/api/auth/register`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password })
-                });
-
-                if (!response.ok) throw new Error('Login failed');
-
-                const data = await response.json();
-                
-                apiUrl = url;
-                apiKey = data.apiKey;
-                userEmail = email;
-
-                localStorage.setItem('bls_auth', JSON.stringify({ apiUrl, apiKey, email }));
-                
-                showToast('Login successful!', 'success');
-                showDashboard();
-            } catch (error) {
-                showToast('Login failed: ' + error.message, 'error');
-            }
-        }
-
-        async function register() {
-            await login(); // Same endpoint handles both
-        }
-
-        function logout() {
-            localStorage.removeItem('bls_auth');
-            location.reload();
-        }
-
-        function showDashboard() {
-            document.getElementById('login-screen').style.display = 'none';
-            document.getElementById('dashboard').style.display = 'block';
-            document.getElementById('user-email').textContent = userEmail;
-            loadData();
-        }
-
-        async function loadData() {
-            try {
-                const response = await fetch(`${apiUrl}/api/applicants`, {
-                    headers: { 'x-api-key': apiKey }
-                });
-
-                if (!response.ok) throw new Error('Failed to load data');
-
-                const data = await response.json();
+                const data = JSON.parse(saved);
                 applicants = data.applicants || [];
                 groups = data.groups || [];
-
-                renderApplicants();
-                renderGroups();
-                updateStats();
-            } catch (error) {
-                showToast('Failed to load data: ' + error.message, 'error');
             }
+            renderApplicants();
+            renderGroups();
+            updateStats();
+        }
+
+        function saveData() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ applicants, groups }));
+            updateStats();
         }
 
         function renderApplicants() {
@@ -809,7 +672,6 @@
 
             container.innerHTML = html;
 
-            // Update group select in form
             const groupSelect = document.getElementById('form-group');
             groupSelect.innerHTML = '<option value="">No Group</option>';
             groups.forEach(group => {
@@ -927,12 +789,13 @@
                 applicants.push(applicantData);
             }
 
-            // Add new group if entered
             if (applicantData.group && !groups.includes(applicantData.group)) {
                 groups.push(applicantData.group);
             }
 
-            await syncToServer();
+            saveData();
+            renderApplicants();
+            renderGroups();
             closeModal();
             showToast('Applicant saved!', 'success');
         }
@@ -945,51 +808,27 @@
             });
         }
 
-        async function deleteApplicant(index) {
+        function deleteApplicant(index) {
             if (!confirm('Delete this applicant?')) return;
-
             applicants.splice(index, 1);
-            await syncToServer();
+            saveData();
+            renderApplicants();
+            renderGroups();
             showToast('Applicant deleted!', 'success');
         }
 
-        async function deleteAll() {
+        function deleteAll() {
             if (!confirm('Delete ALL applicants? This cannot be undone!')) return;
-
             applicants = [];
             groups = [];
-            await syncToServer();
+            saveData();
+            renderApplicants();
+            renderGroups();
             showToast('All applicants deleted!', 'success');
         }
 
-        async function syncToServer() {
-            try {
-                const response = await fetch(`${apiUrl}/api/applicants/sync`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-api-key': apiKey
-                    },
-                    body: JSON.stringify({ applicants, groups })
-                });
-
-                if (!response.ok) throw new Error('Sync failed');
-
-                const result = await response.json();
-                applicants = result.data.applicants;
-                groups = result.data.groups;
-
-                renderApplicants();
-                renderGroups();
-                updateStats();
-            } catch (error) {
-                showToast('Sync failed: ' + error.message, 'error');
-            }
-        }
-
-        async function syncNow() {
-            await loadData();
-            showToast('Synced successfully!', 'success');
+        function syncNow() {
+            showToast('Data synced!', 'success');
         }
 
         function exportData() {
@@ -1031,7 +870,9 @@
                             });
                         }
 
-                        await syncToServer();
+                        saveData();
+                        renderApplicants();
+                        renderGroups();
                         showToast(`Imported ${data.applicants.length} applicants!`, 'success');
                     } catch (error) {
                         showToast('Import failed: ' + error.message, 'error');
