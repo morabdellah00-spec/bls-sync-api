@@ -1,12 +1,28 @@
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
+const path = require('path');
 
 const app = express();
 
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+// Serve dashboard as homepage
+app.get('/', (req, res) => {
+  // Check if requesting JSON API
+  if (req.headers.accept && req.headers.accept.includes('application/json')) {
+    return res.json({ 
+      status: 'ok', 
+      service: 'BLS Applicant Manager Sync API',
+      version: '1.0.0'
+    });
+  }
+  
+  // Otherwise serve the dashboard
+  res.sendFile(path.join(__dirname, 'dashboard.html'));
+});
 
 // In-memory storage
 const users = new Map();
@@ -35,7 +51,7 @@ function verifyApiKey(req, res, next) {
 }
 
 // Health check
-app.get('/', (req, res) => {
+app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'ok', 
     service: 'BLS Applicant Manager Sync API',
@@ -191,7 +207,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// CRITICAL FIX: Get port from Railway's environment
+// Get port from Railway's environment
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
 // Start server
@@ -207,7 +223,6 @@ const shutdown = () => {
     process.exit(0);
   });
   
-  // Force close after 10 seconds
   setTimeout(() => {
     console.error('Forcing shutdown');
     process.exit(1);
