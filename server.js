@@ -39,9 +39,11 @@ app.get('/', (req, res) => {
         .search-box { flex: 1; min-width: 200px; padding: 10px 15px; border: 2px solid #ecf0f1; border-radius: 8px; font-size: 14px; }
         .search-box:focus { outline: none; border-color: #667eea; }
         .groups-filter { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
-        .group-badge { padding: 8px 16px; background: #ecf0f1; border-radius: 20px; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+        .group-badge { padding: 8px 16px; background: #ecf0f1; border-radius: 20px; font-size: 13px; cursor: pointer; transition: all 0.2s; position: relative; display: inline-flex; align-items: center; gap: 8px; }
         .group-badge:hover { background: #667eea; color: white; transform: translateY(-1px); }
         .group-badge.active { background: #667eea; color: white; }
+        .group-delete { margin-left: 5px; color: #e74c3c; font-weight: bold; cursor: pointer; opacity: 0.7; transition: opacity 0.2s; }
+        .group-delete:hover { opacity: 1; transform: scale(1.2); }
         table { width: 100%; border-collapse: collapse; }
         th, td { text-align: left; padding: 12px; border-bottom: 1px solid #ecf0f1; }
         th { background: #f8f9fa; font-weight: 600; color: #2c3e50; }
@@ -197,7 +199,12 @@ app.get('/', (req, res) => {
             
             // Build groups filter HTML
             let h = \`<div class="group-badge \${filter==='all'?'active':''}" onclick="filterBy('all')">All (\${cnt.all})</div>\`;
-            groups.forEach(g => h += \`<div class="group-badge \${filter===g?'active':''}" onclick="filterBy('\${g}')">\${g} (\${cnt[g]||0})</div>\`);
+            groups.forEach(g => {
+                h += \`<div class="group-badge \${filter===g?'active':''}">
+                    <span onclick="filterBy('\${g}')" style="flex: 1;">\${g} (\${cnt[g]||0})</span>
+                    <span class="group-delete" onclick="event.stopPropagation(); deleteGroup('\${g}')" title="Delete group">✖</span>
+                </div>\`;
+            });
             c.innerHTML = h;
             
             // Build groups select HTML (preserve current selection)
@@ -396,6 +403,28 @@ app.get('/', (req, res) => {
             apps = []; groups = [];
             await sync();
             toast('All deleted!', 'success');
+        }
+
+        async function deleteGroup(groupName) {
+            if (!confirm(\`Delete group "\${groupName}"?\n\nApplicants in this group will be moved to "No Group".\`)) return;
+            
+            // Remove group from groups array
+            groups = groups.filter(g => g !== groupName);
+            
+            // Remove group from all applicants that have it
+            apps.forEach(a => {
+                if (a.group === groupName) {
+                    a.group = '';
+                }
+            });
+            
+            // If we're currently filtering by this group, switch to "All"
+            if (filter === groupName) {
+                filter = 'all';
+            }
+            
+            await sync();
+            toast('Group deleted!', 'success');
         }
 
         async function sync() {
