@@ -116,8 +116,30 @@ app.get('/', (req, res) => {
                 <div class="form-group"><label>Last Name *</label><input type="text" id="fl" data-next="fp"></div>
                 <div class="form-group"><label>Passport *</label><input type="text" id="fp" data-next="fd"></div>
                 <div class="form-group"><label>Date of Birth</label><input type="date" id="fd" data-next="fb"></div>
-                <div class="form-group"><label>Place of Birth</label><input type="text" id="fb" data-next="fi"></div>
-                <div class="form-group"><label>Issue Place</label><input type="text" id="fi" data-next="fph"></div>
+                <div class="form-group">
+                    <label>Place of Birth</label>
+                    <select id="fb" data-next="fi">
+                        <option value="">Select city...</option>
+                        <option value="CASABLANCA">CASABLANCA</option>
+                        <option value="NADOR">NADOR</option>
+                        <option value="RABAT">RABAT</option>
+                        <option value="TETOUAN">TETOUAN</option>
+                        <option value="AGADIR">AGADIR</option>
+                        <option value="TANGER">TANGER</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Issue Place</label>
+                    <select id="fi" data-next="fph">
+                        <option value="">Select city...</option>
+                        <option value="CASABLANCA">CASABLANCA</option>
+                        <option value="NADOR">NADOR</option>
+                        <option value="RABAT">RABAT</option>
+                        <option value="TETOUAN">TETOUAN</option>
+                        <option value="AGADIR">AGADIR</option>
+                        <option value="TANGER">TANGER</option>
+                    </select>
+                </div>
                 <div class="form-group"><label>Photo (Max 200KB)</label><input type="file" id="fph" accept="image/*"><div id="prev"></div></div>
             </div>
             <div class="modal-footer"><button class="btn btn-danger" onclick="closeModal()">Cancel</button><button class="btn btn-success" onclick="saveApplicant()">Save</button></div>
@@ -300,12 +322,12 @@ app.get('/', (req, res) => {
             });
         });
 
-        // Auto-fill Issue Place when Place of Birth is filled
-        document.getElementById('fb').addEventListener('input', e => {
+        // Auto-fill Issue Place when Place of Birth is selected
+        document.getElementById('fb').addEventListener('change', e => {
             const placeOfBirth = e.target.value;
             const issuePlaceField = document.getElementById('fi');
-            // Only auto-fill if Issue Place is empty
-            if (!issuePlaceField.value) {
+            // Only auto-fill if Issue Place is empty or default
+            if (!issuePlaceField.value || issuePlaceField.value === '') {
                 issuePlaceField.value = placeOfBirth;
             }
         });
