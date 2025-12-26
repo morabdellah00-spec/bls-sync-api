@@ -112,12 +112,12 @@ app.get('/', (req, res) => {
             <div class="modal-header"><h2 id="modal-title">Add Applicant</h2><button class="close-btn" onclick="closeModal()">&times;</button></div>
             <div class="modal-body">
                 <div class="form-group"><label>Group</label><select id="fg"><option value="">No Group</option></select></div>
-                <div class="form-group"><label>First Name *</label><input type="text" id="ff"></div>
-                <div class="form-group"><label>Last Name *</label><input type="text" id="fl"></div>
-                <div class="form-group"><label>Passport *</label><input type="text" id="fp"></div>
-                <div class="form-group"><label>Date of Birth</label><input type="date" id="fd"></div>
-                <div class="form-group"><label>Place of Birth</label><input type="text" id="fb"></div>
-                <div class="form-group"><label>Issue Place</label><input type="text" id="fi"></div>
+                <div class="form-group"><label>First Name *</label><input type="text" id="ff" data-next="fl"></div>
+                <div class="form-group"><label>Last Name *</label><input type="text" id="fl" data-next="fp"></div>
+                <div class="form-group"><label>Passport *</label><input type="text" id="fp" data-next="fd"></div>
+                <div class="form-group"><label>Date of Birth</label><input type="date" id="fd" data-next="fb"></div>
+                <div class="form-group"><label>Place of Birth</label><input type="text" id="fb" data-next="fi"></div>
+                <div class="form-group"><label>Issue Place</label><input type="text" id="fi" data-next="fph"></div>
                 <div class="form-group"><label>Photo (Max 200KB)</label><input type="file" id="fph" accept="image/*"><div id="prev"></div></div>
             </div>
             <div class="modal-footer"><button class="btn btn-danger" onclick="closeModal()">Cancel</button><button class="btn btn-success" onclick="saveApplicant()">Save</button></div>
@@ -142,7 +142,7 @@ app.get('/', (req, res) => {
                 const d = await r.json();
                 apps = d.applicants || [];
                 groups = d.groups || [];
-                render(); renderGroups(); updateStats();
+                updateUI(); // Batch all UI updates
             } catch (e) { toast('Load failed', 'error'); }
         }
 
@@ -158,6 +158,8 @@ app.get('/', (req, res) => {
                 tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><h3>No applicants</h3></div></td></tr>';
                 return;
             }
+            
+            // Use innerHTML for faster rendering - browser optimizes this
             tbody.innerHTML = filtered.map((a, i) => {
                 const idx = apps.indexOf(a);
                 const ph = a.photo ? \`<img src="\${a.photo}" class="photo-thumb">\` : '<div class="no-photo">👤</div>';
@@ -167,22 +169,38 @@ app.get('/', (req, res) => {
 
         function renderGroups() {
             const c = document.getElementById('groups-filter');
+            const sel = document.getElementById('fg');
             const cnt = { all: apps.length };
             apps.forEach(a => { if (a.group) cnt[a.group] = (cnt[a.group]||0) + 1; });
+            
+            // Build groups filter HTML
             let h = \`<div class="group-badge \${filter==='all'?'active':''}" onclick="filterBy('all')">All (\${cnt.all})</div>\`;
             groups.forEach(g => h += \`<div class="group-badge \${filter===g?'active':''}" onclick="filterBy('\${g}')">\${g} (\${cnt[g]||0})</div>\`);
             c.innerHTML = h;
-            const sel = document.getElementById('fg');
+            
+            // Build groups select HTML (preserve current selection)
+            const currentSelection = sel.value;
             sel.innerHTML = '<option value="">No Group</option>';
             groups.forEach(g => sel.innerHTML += \`<option value="\${g}">\${g}</option>\`);
+            sel.value = currentSelection; // Restore selection
         }
 
-        function filterBy(g) { filter = g; render(); renderGroups(); }
-        function filterApplicants() { render(); }
         function updateStats() {
             document.getElementById('total-applicants').textContent = apps.length;
             document.getElementById('total-groups').textContent = groups.length;
             document.getElementById('with-photos').textContent = apps.filter(a => a.photo).length;
+        }
+
+        // Batch all UI updates together for better performance
+        function updateUI() {
+            render();
+            renderGroups();
+            updateStats();
+        }
+
+        function filterBy(g) { filter = g; updateUI(); }
+        function filterApplicants() { render(); }
+
         }
 
         function showAddModal() {
@@ -196,13 +214,22 @@ app.get('/', (req, res) => {
             document.getElementById('fd').value = '';
             document.getElementById('fb').value = '';
             document.getElementById('fi').value = '';
-            document.getElementById('fg').value = '';
+            
+            // Auto-select group based on current filter (if not "all")
+            if (filter !== 'all' && groups.includes(filter)) {
+                document.getElementById('fg').value = filter;
+            } else {
+                document.getElementById('fg').value = '';
+            }
             
             // IMPORTANT: Clear file input and preview
             document.getElementById('fph').value = '';
             document.getElementById('prev').innerHTML = '';
             
             document.getElementById('modal').classList.add('active');
+            
+            // Focus first field for quick entry
+            setTimeout(() => document.getElementById('ff').focus(), 100);
         }
 
         function showAddGroupModal() {
@@ -259,6 +286,30 @@ app.get('/', (req, res) => {
             const r = new FileReader();
             r.onload = ev => document.getElementById('prev').innerHTML = \`<img src="\${ev.target.result}" style="max-width:150px;border-radius:8px;margin-top:10px">\`;
             r.readAsDataURL(f);
+        });
+
+        // Enter key navigation - move to next field
+        document.querySelectorAll('#ff, #fl, #fp, #fd, #fb, #fi').forEach(input => {
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const nextId = input.getAttribute('data-next');
+                    if (nextId) {
+                        const nextField = document.getElementById(nextId);
+                        if (nextField) nextField.focus();
+                    }
+                }
+            });
+        });
+
+        // Auto-fill Issue Place when Place of Birth is filled
+        document.getElementById('fb').addEventListener('input', e => {
+            const placeOfBirth = e.target.value;
+            const issuePlaceField = document.getElementById('fi');
+            // Only auto-fill if Issue Place is empty
+            if (!issuePlaceField.value) {
+                issuePlaceField.value = placeOfBirth;
+            }
         });
 
         async function saveApplicant() {
@@ -337,7 +388,7 @@ app.get('/', (req, res) => {
                 const d = await r.json();
                 apps = d.data.applicants;
                 groups = d.data.groups;
-                render(); renderGroups(); updateStats();
+                updateUI(); // Batch all UI updates
             } catch (e) { toast('Sync failed!', 'error'); }
         }
 
