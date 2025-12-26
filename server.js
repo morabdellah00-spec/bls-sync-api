@@ -201,8 +201,6 @@ app.get('/', (req, res) => {
         function filterBy(g) { filter = g; updateUI(); }
         function filterApplicants() { render(); }
 
-        }
-
         function showAddModal() {
             editIdx = -1;
             document.getElementById('modal-title').textContent = 'Add Applicant';
