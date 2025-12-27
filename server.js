@@ -339,6 +339,13 @@ app.get('/', (req, res) => {
             }
         });
 
+        // Escape key to close modal (works on all keyboards)
+        document.getElementById('modal').addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+
         async function saveApplicant() {
             const fn = document.getElementById('ff').value.trim();
             const ln = document.getElementById('fl').value.trim();
@@ -406,17 +413,14 @@ app.get('/', (req, res) => {
         }
 
         async function deleteGroup(groupName) {
-            if (!confirm(\`Delete group "\${groupName}"?\n\nApplicants in this group will be moved to "No Group".\`)) return;
+            const count = apps.filter(a => a.group === groupName).length;
+            if (!confirm(\`Delete group "\${groupName}" and its \${count} applicant(s)?\n\nThis will permanently delete all applicants in this group.\`)) return;
             
             // Remove group from groups array
             groups = groups.filter(g => g !== groupName);
             
-            // Remove group from all applicants that have it
-            apps.forEach(a => {
-                if (a.group === groupName) {
-                    a.group = '';
-                }
-            });
+            // Delete all applicants that have this group
+            apps = apps.filter(a => a.group !== groupName);
             
             // If we're currently filtering by this group, switch to "All"
             if (filter === groupName) {
@@ -424,7 +428,7 @@ app.get('/', (req, res) => {
             }
             
             await sync();
-            toast('Group deleted!', 'success');
+            toast('Group and applicants deleted!', 'success');
         }
 
         async function sync() {
