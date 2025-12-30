@@ -98,6 +98,7 @@ app.get('/', (req, res) => {
                 <button class="btn btn-primary" onclick="showAddGroupModal()">📁 Add Group</button>
                 <button class="btn btn-primary" onclick="importData()">📤 Import</button>
                 <button class="btn btn-warning" onclick="exportData()">💾 Export</button>
+                <button class="btn btn-primary" onclick="syncToExtension()" style="background: #9b59b6;">🔄 Sync to Extension</button>
                 <button class="btn btn-danger" onclick="deleteAll()">🗑️ Delete All</button>
             </div>
             <div class="groups-filter" id="groups-filter"></div>
@@ -484,6 +485,32 @@ app.get('/', (req, res) => {
                 r.readAsText(f);
             };
             inp.click();
+        }
+
+        function syncToExtension() {
+            if (apps.length === 0) {
+                toast('No applicants to sync!', 'error');
+                return;
+            }
+            
+            // Send message to extension content script using window.postMessage
+            window.postMessage({
+                type: 'BLS_SYNC_TO_EXTENSION',
+                data: {
+                    applicants: apps,
+                    groups: groups
+                }
+            }, '*');
+            
+            toast(\`Syncing \${apps.length} applicant(s) to extension...\`, 'success');
+            
+            // Check if extension received the data
+            setTimeout(() => {
+                console.log('📤 Sent sync request to extension:', {
+                    applicants: apps.length,
+                    groups: groups.length
+                });
+            }, 100);
         }
 
         function toast(msg, type = 'success') {
