@@ -493,23 +493,34 @@ app.get('/', (req, res) => {
                 return;
             }
             
-            // Send message to extension content script using window.postMessage
-            window.postMessage({
+            console.log('📤 Preparing sync request...');
+            console.log('📊 Data to sync:', {
+                applicants: apps.length,
+                groups: groups.length,
+                firstApplicant: apps[0]?.FirstName
+            });
+            
+            // Create the message
+            const message = {
                 type: 'BLS_SYNC_TO_EXTENSION',
                 data: {
                     applicants: apps,
                     groups: groups
                 }
-            }, '*');
+            };
             
-            toast(\`Syncing \${apps.length} applicant(s) to extension...\`, 'success');
+            console.log('📤 Sending postMessage...', message.type);
             
-            // Check if extension received the data
+            // Send message to extension content script using window.postMessage
+            window.postMessage(message, '*');
+            
+            console.log('✅ Message sent successfully');
+            
+            toast(\`✅ Synced \${apps.length} applicant(s) and \${groups.length} group(s) to extension!\`, 'success');
+            
+            // Log details after a short delay
             setTimeout(() => {
-                console.log('📤 Sent sync request to extension:', {
-                    applicants: apps.length,
-                    groups: groups.length
-                });
+                console.log('🔍 Sync completed at:', new Date().toISOString());
             }, 100);
         }
 
