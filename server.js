@@ -98,7 +98,6 @@ app.get('/', (req, res) => {
                 <button class="btn btn-primary" onclick="showAddGroupModal()">📁 Add Group</button>
                 <button class="btn btn-primary" onclick="importData()">📤 Import</button>
                 <button class="btn btn-warning" onclick="exportData()">💾 Export</button>
-                <button class="btn btn-primary" onclick="syncToExtension()" style="background: #9b59b6;">🔄 Sync to Extension</button>
                 <button class="btn btn-danger" onclick="deleteAll()">🗑️ Delete All</button>
             </div>
             <div class="groups-filter" id="groups-filter"></div>
@@ -485,40 +484,6 @@ app.get('/', (req, res) => {
                 r.readAsText(f);
             };
             inp.click();
-        }
-
-        async function syncToExtension() {
-            if (apps.length === 0) {
-                toast('No applicants to sync!', 'error');
-                return;
-            }
-            
-            console.log('📤 Starting sync to server AND extension...');
-            
-            // STEP 1: Save to server (so other browsers can access it)
-            try {
-                await sync(); // This saves to server
-                console.log('✅ Saved to server successfully');
-            } catch (e) {
-                console.error('❌ Failed to save to server:', e);
-                toast('Failed to sync to server!', 'error');
-                return;
-            }
-            
-            // STEP 2: Notify local extension via postMessage
-            console.log('📤 Sending postMessage to local extension...');
-            const message = {
-                type: 'BLS_SYNC_TO_EXTENSION',
-                data: {
-                    applicants: apps,
-                    groups: groups
-                }
-            };
-            
-            window.postMessage(message, '*');
-            console.log('✅ PostMessage sent to local extension');
-            
-            toast(\`✅ Synced \${apps.length} applicant(s) to server & extension!\`, 'success');
         }
 
         function toast(msg, type = 'success') {
