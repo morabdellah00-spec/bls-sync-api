@@ -487,20 +487,26 @@ app.get('/', (req, res) => {
             inp.click();
         }
 
-        function syncToExtension() {
+        async function syncToExtension() {
             if (apps.length === 0) {
                 toast('No applicants to sync!', 'error');
                 return;
             }
             
-            console.log('📤 Preparing sync request...');
-            console.log('📊 Data to sync:', {
-                applicants: apps.length,
-                groups: groups.length,
-                firstApplicant: apps[0]?.FirstName
-            });
+            console.log('📤 Starting sync to server AND extension...');
             
-            // Create the message
+            // STEP 1: Save to server (so other browsers can access it)
+            try {
+                await sync(); // This saves to server
+                console.log('✅ Saved to server successfully');
+            } catch (e) {
+                console.error('❌ Failed to save to server:', e);
+                toast('Failed to sync to server!', 'error');
+                return;
+            }
+            
+            // STEP 2: Notify local extension via postMessage
+            console.log('📤 Sending postMessage to local extension...');
             const message = {
                 type: 'BLS_SYNC_TO_EXTENSION',
                 data: {
@@ -509,19 +515,10 @@ app.get('/', (req, res) => {
                 }
             };
             
-            console.log('📤 Sending postMessage...', message.type);
-            
-            // Send message to extension content script using window.postMessage
             window.postMessage(message, '*');
+            console.log('✅ PostMessage sent to local extension');
             
-            console.log('✅ Message sent successfully');
-            
-            toast(\`✅ Synced \${apps.length} applicant(s) and \${groups.length} group(s) to extension!\`, 'success');
-            
-            // Log details after a short delay
-            setTimeout(() => {
-                console.log('🔍 Sync completed at:', new Date().toISOString());
-            }, 100);
+            toast(\`✅ Synced \${apps.length} applicant(s) to server & extension!\`, 'success');
         }
 
         function toast(msg, type = 'success') {
