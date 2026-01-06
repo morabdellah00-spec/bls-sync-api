@@ -11,6 +11,14 @@ let sharedData = {
   lastModified: new Date().toISOString()
 };
 
+// ==================== BROADCAST COMMAND STORAGE ====================
+// For multi-browser control - stores current command
+let currentCommand = {
+  location: '',
+  visaType: '',
+  timestamp: Date.now()
+};
+
 app.get('/', (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="en">
@@ -524,6 +532,62 @@ app.delete('/api/applicants', (req, res) => {
   sharedData = { applicants: [], groups: [], lastModified: new Date().toISOString() };
   res.json({ success: true });
 });
+
+// ==================== BROADCAST ENDPOINTS ====================
+// Multi-browser control system
+
+// POST /api/broadcast - Master browser sends command
+app.post('/api/broadcast', (req, res) => {
+  try {
+    const { location, visaType, timestamp } = req.body;
+
+    if (!location || !visaType) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing location or visaType'
+      });
+    }
+
+    currentCommand = {
+      location,
+      visaType,
+      timestamp: timestamp || Date.now()
+    };
+
+    console.log('📢 Broadcast command updated:', currentCommand);
+
+    res.json({
+      success: true,
+      command: currentCommand,
+      message: 'Command broadcasted successfully'
+    });
+  } catch (error) {
+    console.error('Error broadcasting command:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/broadcast - Slave browsers poll for command
+app.get('/api/broadcast', (req, res) => {
+  try {
+    res.json({
+      success: true,
+      ...currentCommand
+    });
+  } catch (error) {
+    console.error('Error getting command:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ==================== END BROADCAST ENDPOINTS ====================
+
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 app.listen(PORT, '0.0.0.0', () => {
