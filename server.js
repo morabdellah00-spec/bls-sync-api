@@ -12,6 +12,13 @@ let sharedData = {
   forceSyncTimestamp: null // Timestamp for forcing extensions to sync
 };
 
+// Broadcast command for multi-browser control
+let broadcastCommand = {
+  location: null,
+  visaType: null,
+  timestamp: null
+};
+
 app.get('/', (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="en">
@@ -543,6 +550,7 @@ app.post('/api/applicants/sync', (req, res) => {
 
 app.delete('/api/applicants', (req, res) => {
   sharedData = { applicants: [], groups: [], lastModified: new Date().toISOString(), forceSyncTimestamp: null };
+  broadcastCommand = { location: null, visaType: null, timestamp: null };
   res.json({ success: true });
 });
 
@@ -555,6 +563,28 @@ app.post('/api/force-sync', (req, res) => {
     message: 'Force sync command sent to all extensions!',
     timestamp: sharedData.forceSyncTimestamp 
   });
+});
+
+// Broadcast command API (for multi-browser location/visa control)
+app.get('/api/broadcast', (req, res) => {
+  res.json(broadcastCommand);
+});
+
+app.post('/api/broadcast', (req, res) => {
+  const { location, visaType, timestamp } = req.body;
+  
+  if (!location || !visaType) {
+    return res.status(400).json({ error: 'Location and visaType required' });
+  }
+  
+  broadcastCommand = {
+    location,
+    visaType,
+    timestamp: timestamp || Date.now()
+  };
+  
+  console.log('📢 Broadcast command:', broadcastCommand);
+  res.json({ success: true, command: broadcastCommand });
 });
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
