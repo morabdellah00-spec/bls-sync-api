@@ -8,15 +8,8 @@ app.use(express.json({ limit: '50mb' }));
 let sharedData = {
   applicants: [],
   groups: [],
-  lastModified: new Date().toISOString()
-};
-
-// ==================== BROADCAST COMMAND STORAGE ====================
-// For multi-browser control - stores current command
-let currentCommand = {
-  location: '',
-  visaType: '',
-  timestamp: Date.now()
+  lastModified: new Date().toISOString(),
+  forceSyncTimestamp: null // Timestamp for forcing extensions to sync
 };
 
 app.get('/', (req, res) => {
@@ -90,7 +83,8 @@ app.get('/', (req, res) => {
             <div><h1>💼 BLS Applicant Manager</h1><small style="color: #7f8c8d;">Web Dashboard</small></div>
             <div style="display: flex; gap: 10px; align-items: center;">
                 <div class="sync-status"><div class="sync-dot"></div><span>Connected</span></div>
-                <button class="btn btn-warning" onclick="syncNow()">🔄 Sync</button>
+                <button class="btn btn-warning" onclick="syncNow()">🔄 Refresh</button>
+                <button class="btn btn-success" onclick="forceSyncAll()" title="Force all extensions to sync immediately">📢 SYNC ALL EXTENSIONS</button>
             </div>
         </div>
         <div class="stats">
@@ -455,6 +449,25 @@ app.get('/', (req, res) => {
 
         async function syncNow() { await loadData(); toast('Synced!', 'success'); }
 
+        async function forceSyncAll() {
+            try {
+                const response = await fetch(API + '/api/force-sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    toast('🔔 Sync command sent to ALL extensions!', 'success');
+                    console.log('Force sync triggered at:', new Date(data.timestamp).toLocaleTimeString());
+                } else {
+                    toast('Failed to send sync command!', 'error');
+                }
+            } catch (error) {
+                console.error('Force sync error:', error);
+                toast('Error sending sync command!', 'error');
+            }
+        }
+
         function exportData() {
             const s = JSON.stringify({ applicants: apps, groups }, null, 2);
             const b = new Blob([s], { type: 'application/json' });
@@ -529,65 +542,20 @@ app.post('/api/applicants/sync', (req, res) => {
 });
 
 app.delete('/api/applicants', (req, res) => {
-  sharedData = { applicants: [], groups: [], lastModified: new Date().toISOString() };
+  sharedData = { applicants: [], groups: [], lastModified: new Date().toISOString(), forceSyncTimestamp: null };
   res.json({ success: true });
 });
 
-// ==================== BROADCAST ENDPOINTS ====================
-// Multi-browser control system
-
-// POST /api/broadcast - Master browser sends command
-app.post('/api/broadcast', (req, res) => {
-  try {
-    const { location, visaType, timestamp } = req.body;
-
-    if (!location || !visaType) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing location or visaType'
-      });
-    }
-
-    currentCommand = {
-      location,
-      visaType,
-      timestamp: timestamp || Date.now()
-    };
-
-    console.log('📢 Broadcast command updated:', currentCommand);
-
-    res.json({
-      success: true,
-      command: currentCommand,
-      message: 'Command broadcasted successfully'
-    });
-  } catch (error) {
-    console.error('Error broadcasting command:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
+// Force all extensions to sync immediately
+app.post('/api/force-sync', (req, res) => {
+  sharedData.forceSyncTimestamp = Date.now();
+  console.log('🔔 Force sync triggered! Timestamp:', sharedData.forceSyncTimestamp);
+  res.json({ 
+    success: true, 
+    message: 'Force sync command sent to all extensions!',
+    timestamp: sharedData.forceSyncTimestamp 
+  });
 });
-
-// GET /api/broadcast - Slave browsers poll for command
-app.get('/api/broadcast', (req, res) => {
-  try {
-    res.json({
-      success: true,
-      ...currentCommand
-    });
-  } catch (error) {
-    console.error('Error getting command:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// ==================== END BROADCAST ENDPOINTS ====================
-
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 app.listen(PORT, '0.0.0.0', () => {
