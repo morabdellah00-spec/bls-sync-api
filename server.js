@@ -3,19 +3,46 @@ const cors = require('cors');
 const http = require('http');
 const crypto = require('crypto');
 const path = require('path');
+const nodemailer = require('nodemailer');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+app.use(express.static(__dirname)); // Serve static files
 
 const server = http.createServer(app);
 
-// WebSocket clients
-const clients = new Set();
+// Configuration
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
+const EMAIL_USER = process.env.EMAIL_USER || 'your-email@gmail.com';
+const EMAIL_PASS = process.env.EMAIL_PASS || 'your-app-password';
+const BASE_URL = process.env.BASE_URL || 'https://bls-sync-api-production.up.railway.app';
 
-function broadcastToClients(message) {
+// Email transporter
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: EMAIL_USER,
+    pass: EMAIL_PASS
+  }
+});
+
+// In-memory database (use real DB in production)
+const users = new Map(); // email -> {email, password, verified, verificationToken, data}
+const sessions = new Map(); // token -> email
+
+// WebSocket clients per user
+const userWebSockets = new Map(); // email -> Set of WebSocket clients
+
+function broadcastToUser(email, message) {
+  const clients = userWebSockets.get(email);
+  if (!clients) return 0;
+  
   const data = JSON.stringify(message);
   let sent = 0;
+  
   clients.forEach(client => {
     try {
       client.send(data);
@@ -24,12 +51,14 @@ function broadcastToClients(message) {
       clients.delete(client);
     }
   });
-  console.log(`📡 Broadcast to ${sent} extension(s): ${message.type}`);
+  
+  console.log(`📡 Broadcast to ${email}: ${message.type} (${sent} clients)`);
+  return sent;
 }
 
 // WebSocket upgrade handler
 server.on('upgrade', (req, socket, head) => {
-  if (req.url === '/ws') {
+  if (req.url.startsWith('/ws?token=')) {
     handleWebSocket(req, socket, head);
   } else {
     socket.destroy();
@@ -39,6 +68,16 @@ server.on('upgrade', (req, socket, head) => {
 function handleWebSocket(req, socket, head) {
   const key = req.headers['sec-websocket-key'];
   if (!key) {
+    socket.destroy();
+    return;
+  }
+
+  // Extract token from URL
+  const token = new URL(req.url, 'http://localhost').searchParams.get('token');
+  const email = sessions.get(token);
+  
+  if (!email) {
+    console.log('❌ WebSocket: Invalid token');
     socket.destroy();
     return;
   }
@@ -58,6 +97,7 @@ function handleWebSocket(req, socket, head) {
 
   const client = {
     socket: socket,
+    email: email,
     send: (data) => {
       const buffer = Buffer.from(data);
       const frame = Buffer.allocUnsafe(buffer.length + 2);
@@ -68,125 +108,261 @@ function handleWebSocket(req, socket, head) {
     }
   };
 
-  clients.add(client);
-  console.log(`✅ Extension connected (Total: ${clients.size})`);
+  if (!userWebSockets.has(email)) {
+    userWebSockets.set(email, new Set());
+  }
+  userWebSockets.get(email).add(client);
+  
+  console.log(`✅ ${email} connected via WebSocket`);
 
-  client.send(JSON.stringify({
-    type: 'INITIAL_DATA',
-    data: sharedData
-  }));
+  // Send initial data
+  const user = users.get(email);
+  if (user && user.data) {
+    client.send(JSON.stringify({
+      type: 'INITIAL_DATA',
+      data: user.data
+    }));
+  }
 
   socket.on('close', () => {
-    clients.delete(client);
-    console.log(`❌ Extension disconnected (Total: ${clients.size})`);
+    const clients = userWebSockets.get(email);
+    if (clients) {
+      clients.delete(client);
+      if (clients.size === 0) {
+        userWebSockets.delete(email);
+      }
+    }
+    console.log(`❌ ${email} disconnected`);
   });
 
-  socket.on('error', (err) => {
-    clients.delete(client);
+  socket.on('error', () => {
+    const clients = userWebSockets.get(email);
+    if (clients) clients.delete(client);
   });
 }
 
-let sharedData = {
-  applicants: [],
-  groups: [],
-  lastModified: new Date().toISOString()
-};
+// Middleware: Verify JWT token
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
 
-let broadcastCommand = {
-  location: null,
-  visaType: null,
-  timestamp: null
-};
+  if (!token) {
+    return res.status(401).json({ error: 'Access denied' });
+  }
 
-// Serve dashboard.html
+  const email = sessions.get(token);
+  if (!email) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+
+  req.userEmail = email;
+  next();
+}
+
+// Routes
 app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'login.html'));
+});
+
+app.get('/register', (req, res) => {
+  res.sendFile(path.join(__dirname, 'register.html'));
+});
+
+app.get('/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, 'dashboard.html'));
 });
 
-app.get('/api/applicants', (req, res) => {
-  res.json(sharedData);
+// Register new user
+app.post('/api/auth/register', async (req, res) => {
+  const { email, password } = req.body;
+  
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password required' });
+  }
+
+  if (users.has(email)) {
+    return res.status(400).json({ error: 'Email already registered' });
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+  const verificationToken = crypto.randomBytes(32).toString('hex');
+
+  users.set(email, {
+    email,
+    password: hashedPassword,
+    verified: false,
+    verificationToken,
+    data: {
+      applicants: [],
+      groups: [],
+      lastModified: new Date().toISOString()
+    }
+  });
+
+  // Send verification email
+  const verifyUrl = `${BASE_URL}/api/auth/verify?token=${verificationToken}`;
+  
+  const mailOptions = {
+    from: EMAIL_USER,
+    to: email,
+    subject: 'BLS Dashboard - Verify Your Email',
+    html: `
+      <h2>Welcome to BLS Dashboard!</h2>
+      <p>Click the link below to verify your email:</p>
+      <a href="${verifyUrl}">${verifyUrl}</a>
+      <p>This link will expire in 24 hours.</p>
+    `
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`📧 Verification email sent to ${email}`);
+    res.json({ 
+      success: true, 
+      message: 'Registration successful! Check your email to verify.' 
+    });
+  } catch (error) {
+    console.error('Email error:', error);
+    res.status(500).json({ error: 'Failed to send verification email' });
+  }
 });
 
-app.post('/api/applicants/sync', (req, res) => {
+// Verify email
+app.get('/api/auth/verify', (req, res) => {
+  const { token } = req.query;
+  
+  let userEmail = null;
+  for (const [email, user] of users.entries()) {
+    if (user.verificationToken === token) {
+      userEmail = email;
+      break;
+    }
+  }
+
+  if (!userEmail) {
+    return res.send('<h1>Invalid verification link</h1>');
+  }
+
+  const user = users.get(userEmail);
+  user.verified = true;
+  user.verificationToken = null;
+
+  res.send(`
+    <h1>✅ Email Verified!</h1>
+    <p>Your email has been verified successfully.</p>
+    <a href="/">Click here to login</a>
+  `);
+});
+
+// Login
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  
+  const user = users.get(email);
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+
+  if (!user.verified) {
+    return res.status(401).json({ error: 'Please verify your email first' });
+  }
+
+  const validPassword = await bcrypt.compare(password, user.password);
+  if (!validPassword) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  sessions.set(token, email);
+
+  res.json({ 
+    success: true, 
+    token,
+    email
+  });
+});
+
+// Logout
+app.post('/api/auth/logout', authenticateToken, (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  sessions.delete(token);
+  res.json({ success: true });
+});
+
+// Get user's applicants
+app.get('/api/applicants', authenticateToken, (req, res) => {
+  const user = users.get(req.userEmail);
+  res.json(user.data);
+});
+
+// Sync applicants
+app.post('/api/applicants/sync', authenticateToken, (req, res) => {
   const { applicants, groups } = req.body;
+  
   if (!Array.isArray(applicants)) {
     return res.status(400).json({ error: 'Invalid' });
   }
-  
-  sharedData.applicants = applicants;
-  sharedData.groups = groups || [];
-  sharedData.lastModified = new Date().toISOString();
-  
-  broadcastToClients({
+
+  const user = users.get(req.userEmail);
+  user.data.applicants = applicants;
+  user.data.groups = groups || [];
+  user.data.lastModified = new Date().toISOString();
+
+  // Broadcast to user's extensions
+  broadcastToUser(req.userEmail, {
     type: 'DATA_UPDATED',
-    data: sharedData,
+    data: user.data,
     source: 'sync'
   });
-  
+
   res.json({ 
     success: true, 
-    data: sharedData, 
+    data: user.data, 
     stats: { 
-      totalApplicants: sharedData.applicants.length, 
-      totalGroups: sharedData.groups.length 
+      totalApplicants: user.data.applicants.length, 
+      totalGroups: user.data.groups.length 
     } 
   });
 });
 
-app.delete('/api/applicants', (req, res) => {
-  sharedData = { 
-    applicants: [], 
-    groups: [], 
+// Delete all
+app.delete('/api/applicants', authenticateToken, (req, res) => {
+  const user = users.get(req.userEmail);
+  user.data = {
+    applicants: [],
+    groups: [],
     lastModified: new Date().toISOString()
   };
-  
-  broadcastToClients({
+
+  broadcastToUser(req.userEmail, {
     type: 'DATA_UPDATED',
-    data: sharedData,
+    data: user.data,
     source: 'delete_all'
   });
-  
+
   res.json({ success: true });
 });
 
-app.post('/api/force-sync', (req, res) => {
-  console.log('🔔 Force sync!');
+// Force sync
+app.post('/api/force-sync', authenticateToken, (req, res) => {
+  const user = users.get(req.userEmail);
   
-  broadcastToClients({
+  const sent = broadcastToUser(req.userEmail, {
     type: 'FORCE_SYNC',
-    data: sharedData,
+    data: user.data,
     timestamp: Date.now()
   });
-  
+
   res.json({ 
     success: true, 
     message: 'Sent via WebSocket!',
-    connectedExtensions: clients.size
+    connectedExtensions: sent
   });
-});
-
-app.get('/api/broadcast', (req, res) => {
-  res.json(broadcastCommand);
-});
-
-app.post('/api/broadcast', (req, res) => {
-  const { location, visaType, timestamp } = req.body;
-  
-  if (!location || !visaType) {
-    return res.status(400).json({ error: 'Required' });
-  }
-  
-  broadcastCommand = {
-    location,
-    visaType,
-    timestamp: timestamp || Date.now()
-  };
-  
-  res.json({ success: true, command: broadcastCommand });
 });
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server on ${PORT}`);
-  console.log(`📡 WebSocket: ws://localhost:${PORT}/ws`);
+  console.log(`📧 Email: ${EMAIL_USER}`);
 });
