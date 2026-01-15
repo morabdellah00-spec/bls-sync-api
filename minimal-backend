@@ -1,0 +1,412 @@
+/**
+ * Minimal BLS Sync API Backend
+ * This is a reference implementation showing all endpoints your extension needs
+ * 
+ * Deploy this to Railway if your current backend is broken
+ */
+
+const express = require('express');
+const cors = require('cors');
+const expressWs = require('express-ws');
+const jwt = require('jsonwebtoken');
+
+const app = express();
+expressWs(app);
+
+// Configuration
+const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
+
+// Middleware
+app.use(cors({
+    origin: '*', // Allow all origins (or specify chrome-extension://* for security)
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+}));
+
+app.use(express.json({ limit: '50mb' }));
+
+// In-memory storage (replace with MongoDB/PostgreSQL in production)
+let applicants = [];
+let groups = [];
+let users = [
+    { email: 'admin@example.com', password: 'admin123' } // Change this!
+];
+let currentBroadcast = {
+    location: '',
+    visaType: '',
+    timestamp: 0
+};
+
+// WebSocket connections
+const wsConnections = new Set();
+
+// ============================================
+// AUTHENTICATION MIDDLEWARE
+// ============================================
+
+function authenticateToken(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+    if (!token) {
+        return res.status(401).json({ error: 'No token provided' });
+    }
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) {
+            return res.status(401).json({ error: 'Invalid token' });
+        }
+        req.user = user;
+        next();
+    });
+}
+
+// ============================================
+// ROUTES
+// ============================================
+
+// Health check
+app.get('/', (req, res) => {
+    res.json({ 
+        status: 'ok', 
+        message: 'BLS Sync API is running',
+        timestamp: new Date().toISOString()
+    });
+});
+
+// ============================================
+// AUTH ENDPOINTS
+// ============================================
+
+// Login
+app.post('/api/auth/login', (req, res) => {
+    const { email, password } = req.body;
+
+    // Validate input
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password required' });
+    }
+
+    // Find user (in production, use hashed passwords!)
+    const user = users.find(u => u.email === email && u.password === password);
+
+    if (!user) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Generate token
+    const token = jwt.sign({ email: user.email }, JWT_SECRET, { expiresIn: '30d' });
+
+    res.json({ 
+        token, 
+        email: user.email,
+        message: 'Login successful'
+    });
+});
+
+// Register (optional)
+app.post('/api/auth/register', (req, res) => {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password required' });
+    }
+
+    if (users.find(u => u.email === email)) {
+        return res.status(400).json({ error: 'User already exists' });
+    }
+
+    users.push({ email, password });
+
+    const token = jwt.sign({ email }, JWT_SECRET, { expiresIn: '30d' });
+
+    res.json({ 
+        token, 
+        email,
+        message: 'Registration successful'
+    });
+});
+
+// ============================================
+// APPLICANTS ENDPOINTS
+// ============================================
+
+// Get all applicants (requires authentication)
+app.get('/api/applicants', authenticateToken, (req, res) => {
+    res.json({
+        applicants: applicants,
+        groups: groups,
+        count: applicants.length
+    });
+});
+
+// Add applicant
+app.post('/api/applicants', authenticateToken, (req, res) => {
+    const applicant = req.body;
+
+    // Validate
+    if (!applicant.PassportNo) {
+        return res.status(400).json({ error: 'PassportNo required' });
+    }
+
+    // Check for duplicates
+    const exists = applicants.find(a => a.PassportNo === applicant.PassportNo);
+    if (exists) {
+        return res.status(400).json({ error: 'Applicant already exists' });
+    }
+
+    applicants.push(applicant);
+
+    // Add group if new
+    if (applicant.group && !groups.includes(applicant.group)) {
+        groups.push(applicant.group);
+    }
+
+    // Broadcast update via WebSocket
+    broadcastToAll({
+        type: 'DATA_UPDATED',
+        data: { applicants, groups }
+    });
+
+    res.json({ 
+        success: true, 
+        applicant,
+        message: 'Applicant added'
+    });
+});
+
+// Update applicant
+app.put('/api/applicants/:passportNo', authenticateToken, (req, res) => {
+    const { passportNo } = req.params;
+    const updates = req.body;
+
+    const index = applicants.findIndex(a => a.PassportNo === passportNo);
+    
+    if (index === -1) {
+        return res.status(404).json({ error: 'Applicant not found' });
+    }
+
+    applicants[index] = { ...applicants[index], ...updates };
+
+    // Update groups
+    if (updates.group && !groups.includes(updates.group)) {
+        groups.push(updates.group);
+    }
+
+    // Broadcast update
+    broadcastToAll({
+        type: 'DATA_UPDATED',
+        data: { applicants, groups }
+    });
+
+    res.json({ 
+        success: true, 
+        applicant: applicants[index],
+        message: 'Applicant updated'
+    });
+});
+
+// Delete applicant
+app.delete('/api/applicants/:passportNo', authenticateToken, (req, res) => {
+    const { passportNo } = req.params;
+
+    const index = applicants.findIndex(a => a.PassportNo === passportNo);
+    
+    if (index === -1) {
+        return res.status(404).json({ error: 'Applicant not found' });
+    }
+
+    const deleted = applicants.splice(index, 1)[0];
+
+    // Broadcast update
+    broadcastToAll({
+        type: 'DATA_UPDATED',
+        data: { applicants, groups }
+    });
+
+    res.json({ 
+        success: true, 
+        applicant: deleted,
+        message: 'Applicant deleted'
+    });
+});
+
+// Bulk import
+app.post('/api/applicants/import', authenticateToken, (req, res) => {
+    const { applicants: newApplicants } = req.body;
+
+    if (!Array.isArray(newApplicants)) {
+        return res.status(400).json({ error: 'Invalid data format' });
+    }
+
+    let added = 0;
+    let skipped = 0;
+
+    newApplicants.forEach(app => {
+        const exists = applicants.find(a => a.PassportNo === app.PassportNo);
+        if (!exists) {
+            applicants.push(app);
+            if (app.group && !groups.includes(app.group)) {
+                groups.push(app.group);
+            }
+            added++;
+        } else {
+            skipped++;
+        }
+    });
+
+    // Broadcast update
+    broadcastToAll({
+        type: 'DATA_UPDATED',
+        data: { applicants, groups }
+    });
+
+    res.json({ 
+        success: true, 
+        added,
+        skipped,
+        total: applicants.length,
+        message: `Imported ${added} applicants, skipped ${skipped} duplicates`
+    });
+});
+
+// ============================================
+// BROADCAST ENDPOINTS (for multi-browser control)
+// ============================================
+
+// Get current broadcast command
+app.get('/api/broadcast', (req, res) => {
+    res.json(currentBroadcast);
+});
+
+// Set broadcast command
+app.post('/api/broadcast', (req, res) => {
+    const { location, visaType } = req.body;
+
+    if (!location || !visaType) {
+        return res.status(400).json({ error: 'location and visaType required' });
+    }
+
+    currentBroadcast = {
+        location,
+        visaType,
+        timestamp: Date.now()
+    };
+
+    res.json({ 
+        success: true, 
+        data: currentBroadcast,
+        message: 'Broadcast command set'
+    });
+});
+
+// ============================================
+// WEBSOCKET (for real-time sync)
+// ============================================
+
+app.ws('/ws', (ws, req) => {
+    // Verify token from query parameter
+    const token = req.query.token;
+
+    if (!token) {
+        ws.close(1008, 'No token provided');
+        return;
+    }
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) {
+            ws.close(1008, 'Invalid token');
+            return;
+        }
+
+        console.log(`WebSocket client connected: ${user.email}`);
+        wsConnections.add(ws);
+
+        // Send initial data
+        ws.send(JSON.stringify({
+            type: 'INITIAL_DATA',
+            data: { applicants, groups }
+        }));
+
+        // Handle client messages
+        ws.on('message', (msg) => {
+            try {
+                const message = JSON.parse(msg);
+                console.log('Received WebSocket message:', message);
+                
+                // Handle different message types
+                if (message.type === 'PING') {
+                    ws.send(JSON.stringify({ type: 'PONG' }));
+                }
+            } catch (e) {
+                console.error('Invalid WebSocket message:', e);
+            }
+        });
+
+        // Handle disconnect
+        ws.on('close', () => {
+            console.log(`WebSocket client disconnected: ${user.email}`);
+            wsConnections.delete(ws);
+        });
+
+        ws.on('error', (error) => {
+            console.error('WebSocket error:', error);
+            wsConnections.delete(ws);
+        });
+    });
+});
+
+// Helper function to broadcast to all connected clients
+function broadcastToAll(message) {
+    const messageStr = JSON.stringify(message);
+    wsConnections.forEach(ws => {
+        if (ws.readyState === 1) { // OPEN
+            ws.send(messageStr);
+        }
+    });
+}
+
+// ============================================
+// ERROR HANDLING
+// ============================================
+
+app.use((err, req, res, next) => {
+    console.error('Error:', err);
+    res.status(500).json({ 
+        error: 'Internal server error',
+        message: err.message 
+    });
+});
+
+// ============================================
+// START SERVER
+// ============================================
+
+app.listen(PORT, () => {
+    console.log(`
+╔════════════════════════════════════════════════════════════╗
+║                                                            ║
+║        🚀 BLS Sync API Server Running!                     ║
+║                                                            ║
+║        Port: ${PORT.toString().padEnd(48)}║
+║        Environment: ${(process.env.NODE_ENV || 'development').padEnd(41)}║
+║                                                            ║
+║        Endpoints:                                          ║
+║        POST /api/auth/login                                ║
+║        GET  /api/applicants (authenticated)                ║
+║        POST /api/applicants (authenticated)                ║
+║        GET  /api/broadcast                                 ║
+║        POST /api/broadcast                                 ║
+║        WS   /ws?token=<jwt>                                ║
+║                                                            ║
+╚════════════════════════════════════════════════════════════╝
+    `);
+});
+
+// ============================================
+// EXPORT FOR TESTING
+// ============================================
+
+module.exports = app;
