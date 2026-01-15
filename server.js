@@ -1,43 +1,15 @@
 const express = require('express');
 const cors = require('cors');
-const { WebSocketServer } = require('ws');
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
-
-// WebSocket server
-let wss = null;
-const connectedClients = new Set();
-
-// Broadcast to all connected extensions
-function broadcastToExtensions(data) {
-  const message = JSON.stringify(data);
-  let sentCount = 0;
-  
-  connectedClients.forEach(client => {
-    if (client.readyState === 1) { // OPEN
-      client.send(message);
-      sentCount++;
-    }
-  });
-  
-  console.log(`📡 Broadcast to ${sentCount} extension(s):`, data.type);
-  return sentCount;
-}
 
 let sharedData = {
   applicants: [],
   groups: [],
   lastModified: new Date().toISOString(),
   forceSyncTimestamp: null // Timestamp for forcing extensions to sync
-};
-
-// Broadcast command for multi-browser control
-let broadcastCommand = {
-  location: null,
-  visaType: null,
-  timestamp: null
 };
 
 app.get('/', (req, res) => {
@@ -566,19 +538,11 @@ app.post('/api/applicants/sync', (req, res) => {
   sharedData.groups = groups || [];
   sharedData.lastModified = new Date().toISOString();
   
-  // Broadcast to all extensions via WebSocket
-  broadcastToExtensions({
-    type: 'DATA_UPDATED',
-    data: sharedData,
-    source: 'sync'
-  });
-  
   res.json({ success: true, data: sharedData, stats: { totalApplicants: sharedData.applicants.length, totalGroups: sharedData.groups.length } });
 });
 
 app.delete('/api/applicants', (req, res) => {
   sharedData = { applicants: [], groups: [], lastModified: new Date().toISOString(), forceSyncTimestamp: null };
-  broadcastCommand = { location: null, visaType: null, timestamp: null };
   res.json({ success: true });
 });
 
@@ -593,55 +557,7 @@ app.post('/api/force-sync', (req, res) => {
   });
 });
 
-// Broadcast command API (for multi-browser location/visa control)
-app.get('/api/broadcast', (req, res) => {
-  res.json(broadcastCommand);
-});
-
-app.post('/api/broadcast', (req, res) => {
-  const { location, visaType, timestamp } = req.body;
-  
-  if (!location || !visaType) {
-    return res.status(400).json({ error: 'Location and visaType required' });
-  }
-  
-  broadcastCommand = {
-    location,
-    visaType,
-    timestamp: timestamp || Date.now()
-  };
-  
-  console.log('📢 Broadcast command:', broadcastCommand);
-  res.json({ success: true, command: broadcastCommand });
-});
-
 const PORT = parseInt(process.env.PORT || '3000', 10);
-const server = app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 BLS Dashboard running on ${PORT}`);
-  
-  // Setup WebSocket server
-  wss = new WebSocketServer({ server });
-  
-  wss.on('connection', (ws) => {
-    connectedClients.add(ws);
-    console.log(`✅ Extension connected (Total: ${connectedClients.size})`);
-    
-    // Send current data immediately
-    ws.send(JSON.stringify({
-      type: 'INITIAL_DATA',
-      data: sharedData
-    }));
-    
-    ws.on('close', () => {
-      connectedClients.delete(ws);
-      console.log(`❌ Extension disconnected (Total: ${connectedClients.size})`);
-    });
-    
-    ws.on('error', (error) => {
-      console.error('WebSocket error:', error);
-      connectedClients.delete(ws);
-    });
-  });
-  
-  console.log(`📡 WebSocket server ready`);
 });
