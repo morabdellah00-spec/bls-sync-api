@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const crypto = require('crypto');
+const path = require('path');
 
 const app = express();
 app.use(cors());
@@ -9,7 +10,7 @@ app.use(express.json({ limit: '50mb' }));
 
 const server = http.createServer(app);
 
-// WebSocket implementation (native Node.js)
+// WebSocket clients
 const clients = new Set();
 
 function broadcastToClients(message) {
@@ -23,12 +24,12 @@ function broadcastToClients(message) {
       clients.delete(client);
     }
   });
-  console.log(`📡 Broadcast to ${sent} client(s): ${message.type}`);
+  console.log(`📡 Broadcast to ${sent} extension(s): ${message.type}`);
 }
 
 // WebSocket upgrade handler
 server.on('upgrade', (req, socket, head) => {
-  if (req.url === '/ws' || req.url === '/') {
+  if (req.url === '/ws') {
     handleWebSocket(req, socket, head);
   } else {
     socket.destroy();
@@ -37,6 +38,11 @@ server.on('upgrade', (req, socket, head) => {
 
 function handleWebSocket(req, socket, head) {
   const key = req.headers['sec-websocket-key'];
+  if (!key) {
+    socket.destroy();
+    return;
+  }
+
   const acceptKey = crypto
     .createHash('sha1')
     .update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')
@@ -55,7 +61,7 @@ function handleWebSocket(req, socket, head) {
     send: (data) => {
       const buffer = Buffer.from(data);
       const frame = Buffer.allocUnsafe(buffer.length + 2);
-      frame[0] = 0x81; // FIN + text frame
+      frame[0] = 0x81;
       frame[1] = buffer.length;
       buffer.copy(frame, 2);
       socket.write(frame);
@@ -63,9 +69,8 @@ function handleWebSocket(req, socket, head) {
   };
 
   clients.add(client);
-  console.log(`✅ Client connected (Total: ${clients.size})`);
+  console.log(`✅ Extension connected (Total: ${clients.size})`);
 
-  // Send initial data
   client.send(JSON.stringify({
     type: 'INITIAL_DATA',
     data: sharedData
@@ -73,11 +78,10 @@ function handleWebSocket(req, socket, head) {
 
   socket.on('close', () => {
     clients.delete(client);
-    console.log(`❌ Client disconnected (Total: ${clients.size})`);
+    console.log(`❌ Extension disconnected (Total: ${clients.size})`);
   });
 
   socket.on('error', (err) => {
-    console.error('Socket error:', err);
     clients.delete(client);
   });
 }
@@ -85,8 +89,7 @@ function handleWebSocket(req, socket, head) {
 let sharedData = {
   applicants: [],
   groups: [],
-  lastModified: new Date().toISOString(),
-  forceSyncTimestamp: null
+  lastModified: new Date().toISOString()
 };
 
 let broadcastCommand = {
@@ -95,21 +98,25 @@ let broadcastCommand = {
   timestamp: null
 };
 
-// GET applicants
+// Serve dashboard.html
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dashboard.html'));
+});
+
 app.get('/api/applicants', (req, res) => {
   res.json(sharedData);
 });
 
-// POST sync (from extension OR dashboard)
 app.post('/api/applicants/sync', (req, res) => {
   const { applicants, groups } = req.body;
-  if (!Array.isArray(applicants)) return res.status(400).json({ error: 'Invalid' });
+  if (!Array.isArray(applicants)) {
+    return res.status(400).json({ error: 'Invalid' });
+  }
   
   sharedData.applicants = applicants;
   sharedData.groups = groups || [];
   sharedData.lastModified = new Date().toISOString();
   
-  // Broadcast to all connected clients
   broadcastToClients({
     type: 'DATA_UPDATED',
     data: sharedData,
@@ -126,43 +133,38 @@ app.post('/api/applicants/sync', (req, res) => {
   });
 });
 
-// DELETE all
 app.delete('/api/applicants', (req, res) => {
   sharedData = { 
     applicants: [], 
     groups: [], 
-    lastModified: new Date().toISOString(), 
-    forceSyncTimestamp: null 
+    lastModified: new Date().toISOString()
   };
   
   broadcastToClients({
     type: 'DATA_UPDATED',
     data: sharedData,
-    source: 'delete'
+    source: 'delete_all'
   });
   
   res.json({ success: true });
 });
 
-// Force sync
 app.post('/api/force-sync', (req, res) => {
-  sharedData.forceSyncTimestamp = Date.now();
-  console.log('🔔 Force sync triggered!');
+  console.log('🔔 Force sync!');
   
   broadcastToClients({
     type: 'FORCE_SYNC',
     data: sharedData,
-    timestamp: sharedData.forceSyncTimestamp
+    timestamp: Date.now()
   });
   
   res.json({ 
     success: true, 
-    message: 'Force sync sent!',
-    timestamp: sharedData.forceSyncTimestamp 
+    message: 'Sent via WebSocket!',
+    connectedExtensions: clients.size
   });
 });
 
-// Broadcast API
 app.get('/api/broadcast', (req, res) => {
   res.json(broadcastCommand);
 });
@@ -171,7 +173,7 @@ app.post('/api/broadcast', (req, res) => {
   const { location, visaType, timestamp } = req.body;
   
   if (!location || !visaType) {
-    return res.status(400).json({ error: 'Location and visaType required' });
+    return res.status(400).json({ error: 'Required' });
   }
   
   broadcastCommand = {
@@ -183,13 +185,8 @@ app.post('/api/broadcast', (req, res) => {
   res.json({ success: true, command: broadcastCommand });
 });
 
-// Health check
-app.get('/', (req, res) => {
-  res.send('BLS Sync API Running');
-});
-
 const PORT = parseInt(process.env.PORT || '3000', 10);
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server on port ${PORT}`);
-  console.log(`📡 WebSocket ready at ws://localhost:${PORT}/ws`);
+  console.log(`🚀 Server on ${PORT}`);
+  console.log(`📡 WebSocket: ws://localhost:${PORT}/ws`);
 });
