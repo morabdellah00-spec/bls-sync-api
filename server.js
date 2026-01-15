@@ -190,8 +190,8 @@ app.post('/api/auth/register', async (req, res) => {
   users.set(email, {
     email,
     password: hashedPassword,
-    verified: false,
-    verificationToken,
+    verified: true, // Auto-verify for testing
+    verificationToken: null,
     data: {
       applicants: [],
       groups: [],
@@ -199,32 +199,11 @@ app.post('/api/auth/register', async (req, res) => {
     }
   });
 
-  // Send verification email
-  const verifyUrl = `${BASE_URL}/api/auth/verify?token=${verificationToken}`;
-  
-  const mailOptions = {
-    from: EMAIL_USER,
-    to: email,
-    subject: 'BLS Dashboard - Verify Your Email',
-    html: `
-      <h2>Welcome to BLS Dashboard!</h2>
-      <p>Click the link below to verify your email:</p>
-      <a href="${verifyUrl}">${verifyUrl}</a>
-      <p>This link will expire in 24 hours.</p>
-    `
-  };
-
-  try {
-    await transporter.sendMail(mailOptions);
-    console.log(`📧 Verification email sent to ${email}`);
-    res.json({ 
-      success: true, 
-      message: 'Registration successful! Check your email to verify.' 
-    });
-  } catch (error) {
-    console.error('Email error:', error);
-    res.status(500).json({ error: 'Failed to send verification email' });
-  }
+  console.log(`✅ User registered (auto-verified): ${email}`);
+  res.json({ 
+    success: true, 
+    message: 'Registration successful! You can now login.' 
+  });
 });
 
 // Verify email
