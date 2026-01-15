@@ -1,17 +1,28 @@
 {
-  "name": "bls-applicant-sync-api",
+  "name": "bls-sync-api",
   "version": "1.0.0",
-  "description": "Sync API for BLS Applicant Manager Pro Extension",
-  "main": "server.js",
-  "keywords": ["bls", "sync", "api"],
+  "description": "BLS Applicant Manager Sync API for Chrome Extension",
+  "main": "minimal-backend.js",
+  "scripts": {
+    "start": "node minimal-backend.js",
+    "dev": "nodemon minimal-backend.js"
+  },
+  "keywords": [
+    "bls",
+    "api",
+    "sync",
+    "chrome-extension"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
-    "nodemailer": "^6.9.7",
-    "jsonwebtoken": "^9.0.2",
-    "bcrypt": "^5.1.1"
+    "express-ws": "^5.0.2",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
   },
   "engines": {
     "node": ">=18.0.0"
