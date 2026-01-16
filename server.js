@@ -54,7 +54,14 @@ setInterval(() => {
 
 // Broadcast to all WebSocket clients
 function broadcastToAll(message) {
-  // Send FULL data WITH photos to everyone
+  // Remove photos from broadcast to save bandwidth
+  if (message.data && message.data.applicants && message.type !== 'FULL_SYNC_WITH_PHOTOS') {
+    message.data.applicants = message.data.applicants.map(app => ({
+      ...app,
+      photo: null // No photos in regular broadcasts
+    }));
+  }
+  
   const messageStr = JSON.stringify(message);
   wsConnections.forEach(ws => {
     if (ws.readyState === 1) {
@@ -218,10 +225,19 @@ app.ws('/ws', (ws, req) => {
   console.log('WebSocket client connected');
   wsConnections.add(ws);
 
-  // Send initial data WITH photos
+  // Send initial data WITHOUT photos (save bandwidth)
+  const initialDataWithoutPhotos = {
+    applicants: sharedData.applicants.map(app => ({
+      ...app,
+      photo: null // No photos on connect
+    })),
+    groups: sharedData.groups,
+    lastModified: sharedData.lastModified
+  };
+
   ws.send(JSON.stringify({
     type: 'INITIAL_DATA',
-    data: sharedData // Full data with photos
+    data: initialDataWithoutPhotos // Metadata only
   }));
 
   ws.on('message', (msg) => {
