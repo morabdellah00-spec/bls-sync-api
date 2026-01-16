@@ -54,15 +54,24 @@ setInterval(() => {
 
 // Broadcast to all WebSocket clients
 function broadcastToAll(message) {
-  // Remove photos from broadcast to save bandwidth
+  // Create a COPY of the message to avoid modifying sharedData
+  let broadcastMessage = message;
+  
+  // Remove photos from broadcast to save bandwidth (but don't modify original!)
   if (message.data && message.data.applicants && message.type !== 'FULL_SYNC_WITH_PHOTOS') {
-    message.data.applicants = message.data.applicants.map(app => ({
-      ...app,
-      photo: null // No photos in regular broadcasts
-    }));
+    broadcastMessage = {
+      ...message,
+      data: {
+        ...message.data,
+        applicants: message.data.applicants.map(app => ({
+          ...app,
+          photo: null // No photos in regular broadcasts
+        }))
+      }
+    };
   }
   
-  const messageStr = JSON.stringify(message);
+  const messageStr = JSON.stringify(broadcastMessage);
   wsConnections.forEach(ws => {
     if (ws.readyState === 1) {
       ws.send(messageStr);
