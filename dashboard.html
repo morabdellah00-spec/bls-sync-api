@@ -697,7 +697,7 @@
 
         async function loadData() {
             try {
-                const r = await fetch(API + '/api/applicants');
+                const r = await fetch(API + '/api/applicants/full'); // Get WITH photos
                 const d = await r.json();
                 apps = d.applicants || [];
                 groups = d.groups || [];
