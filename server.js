@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const expressWs = require('express-ws');
+const path = require('path');
 
 // Memory optimization
 if (global.gc) {
@@ -15,7 +16,10 @@ expressWs(app);
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
-app.use(express.static('public'));
+
+// Serve static files from current directory
+app.use(express.static(__dirname));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Data storage
 let sharedData = {
@@ -70,19 +74,17 @@ function broadcastToAll(message) {
 
 // Serve dashboard at root
 app.get('/', (req, res) => {
-  const path = require('path');
-  // Try multiple locations
-  const fs = require('fs');
-  
-  if (fs.existsSync(path.join(__dirname, 'dashboard.html'))) {
-    res.sendFile(path.join(__dirname, 'dashboard.html'));
-  } else if (fs.existsSync(path.join(__dirname, 'public', 'dashboard.html'))) {
-    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
-  } else if (fs.existsSync(path.join(__dirname, 'public', 'index.html'))) {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-  } else {
-    res.status(404).send('Dashboard not found. Please upload dashboard.html');
-  }
+  res.sendFile(path.join(__dirname, 'index.html'), (err) => {
+    if (err) {
+      console.error('Error serving index.html:', err);
+      res.status(500).send(`
+        <h1>Dashboard Error</h1>
+        <p>Could not find index.html</p>
+        <p>Files in directory: Check Railway logs</p>
+        <p><a href="/api/health">Check API Health</a></p>
+      `);
+    }
+  });
 });
 
 app.get('/api/health', (req, res) => {
@@ -105,6 +107,12 @@ app.get('/api/applicants', (req, res) => {
     groups: sharedData.groups,
     lastModified: sharedData.lastModified
   });
+});
+
+// Dashboard endpoint WITH photos
+app.get('/api/applicants/full', (req, res) => {
+  // Send FULL data WITH photos for dashboard
+  res.json(sharedData);
 });
 
 app.post('/api/applicants/sync', (req, res) => {
