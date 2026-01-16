@@ -68,6 +68,23 @@ function broadcastToAll(message) {
 
 // ==================== ROUTES ====================
 
+// Serve dashboard at root
+app.get('/', (req, res) => {
+  const path = require('path');
+  // Try multiple locations
+  const fs = require('fs');
+  
+  if (fs.existsSync(path.join(__dirname, 'dashboard.html'))) {
+    res.sendFile(path.join(__dirname, 'dashboard.html'));
+  } else if (fs.existsSync(path.join(__dirname, 'public', 'dashboard.html'))) {
+    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+  } else if (fs.existsSync(path.join(__dirname, 'public', 'index.html'))) {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  } else {
+    res.status(404).send('Dashboard not found. Please upload dashboard.html');
+  }
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'ok', 
