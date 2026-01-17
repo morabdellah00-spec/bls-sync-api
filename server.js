@@ -11,7 +11,6 @@ let sharedData = {
   lastModified: new Date().toISOString()
 };
 
-// Broadcast command storage
 let currentCommand = {
   location: '',
   visaType: '',
@@ -82,7 +81,7 @@ app.get('/', (req, res) => {
 <body>
     <div class="container">
         <div class="header">
-            <div><h1>💼 BLS Applicant Manager</h1><small style="color: #7f8c8d;">☁️ Photos hosted FREE on ImgBB</small></div>
+            <div><h1>💼 BLS Applicant Manager</h1><small style="color: #7f8c8d;">☁️ Photos stored as SMALL base64 (compressed)</small></div>
             <div style="display: flex; gap: 10px;">
                 <div class="sync-status"><div class="sync-dot"></div><span>Ready</span></div>
                 <button class="btn btn-warning" onclick="syncNow()">🔄 Sync</button>
@@ -123,7 +122,7 @@ app.get('/', (req, res) => {
                 <div class="form-group"><label>Place of Birth</label><select id="fb"><option value="">Select...</option><option>CASABLANCA</option><option>NADOR</option><option>RABAT</option><option>TETOUAN</option><option>AGADIR</option><option>TANGER</option></select></div>
                 <div class="form-group"><label>Issue Place</label><select id="fi"><option value="">Select...</option><option>CASABLANCA</option><option>NADOR</option><option>RABAT</option><option>TETOUAN</option><option>AGADIR</option><option>TANGER</option></select></div>
                 <div class="form-group">
-                    <label>Photo (Any size - will auto-upload to ImgBB)</label>
+                    <label>Photo (Max 200KB - auto-compressed to 20KB)</label>
                     <input type="file" id="fph" accept="image/*">
                     <div id="upload-status" class="upload-status" style="display:none;"></div>
                     <div id="prev"></div>
@@ -138,9 +137,8 @@ app.get('/', (req, res) => {
     
     <script>
         const API = window.location.origin;
-        const IMGBB_API_KEY = 'd2075c2e2e5f8b9c4e8f8e0a8c0f3b8e'; // Free ImgBB API key
         let apps = [], groups = [], editIdx = -1, filter = 'all';
-        let currentPhotoUrl = null; // Store uploaded photo URL
+        let currentPhotoBase64 = null;
 
         async function loadData() {
             try {
@@ -200,7 +198,7 @@ app.get('/', (req, res) => {
             tb.innerHTML = filtered.map((a, i) => {
                 const idx = apps.indexOf(a);
                 return \`<tr>
-                    <td>\${a.photo ? \`<img class="photo-thumb" src="\${a.photo}" crossorigin="anonymous">\` : '<div class="no-photo">👤</div>'}</td>
+                    <td>\${a.photo ? \`<img class="photo-thumb" src="\${a.photo}">\` : '<div class="no-photo">👤</div>'}</td>
                     <td>\${a.FirstName || ''} \${a.LastName || ''}</td>
                     <td>\${a.PassportNo || ''}</td>
                     <td>\${a.DateOfBirth || ''}</td>
@@ -216,7 +214,7 @@ app.get('/', (req, res) => {
 
         function showAddModal() {
             editIdx = -1;
-            currentPhotoUrl = null;
+            currentPhotoBase64 = null;
             document.getElementById('modal-title').textContent = 'Add Applicant';
             document.getElementById('fg').value = filter === 'all' ? '' : filter;
             ['ff','fl','fp','fd','fb','fi','fph'].forEach(id => document.getElementById(id).value = '');
@@ -227,7 +225,7 @@ app.get('/', (req, res) => {
 
         function edit(i) {
             editIdx = i;
-            currentPhotoUrl = apps[i].photo; // Preserve existing photo URL
+            currentPhotoBase64 = apps[i].photo;
             const a = apps[i];
             document.getElementById('modal-title').textContent = 'Edit';
             document.getElementById('fg').value = a.group || '';
@@ -238,7 +236,7 @@ app.get('/', (req, res) => {
             document.getElementById('fb').value = a.PlaceOfBirth || '';
             document.getElementById('fi').value = a.IssuePlace || '';
             document.getElementById('fph').value = '';
-            document.getElementById('prev').innerHTML = a.photo ? \`<img src="\${a.photo}" crossorigin="anonymous" style="max-width:200px;margin-top:10px;border-radius:8px;">\` : '';
+            document.getElementById('prev').innerHTML = a.photo ? \`<img src="\${a.photo}" style="max-width:200px;margin-top:10px;border-radius:8px;">\` : '';
             document.getElementById('upload-status').style.display = 'none';
             document.getElementById('modal').classList.add('active');
         }
@@ -247,50 +245,78 @@ app.get('/', (req, res) => {
             document.getElementById('modal').classList.remove('active');
         }
 
-        // Auto-upload to ImgBB when photo selected
+        // Auto-compress photo when selected
         document.getElementById('fph').onchange = async (e) => {
-            const f = e.target.files[0];
-            if (!f) return;
+            const file = e.target.files[0];
+            if (!file) return;
             
             const statusEl = document.getElementById('upload-status');
             const prevEl = document.getElementById('prev');
             
             statusEl.style.display = 'block';
-            statusEl.textContent = '⏳ Uploading to ImgBB...';
+            statusEl.textContent = '⏳ Compressing photo...';
             statusEl.style.background = '#fff3cd';
             statusEl.style.color = '#856404';
             
             try {
-                // Create form data
-                const formData = new FormData();
-                formData.append('image', f);
+                // Compress image
+                const compressed = await compressImage(file, 150, 150, 0.7); // 150x150, 70% quality
+                currentPhotoBase64 = compressed;
                 
-                // Upload to ImgBB
-                const response = await fetch(\`https://api.imgbb.com/1/upload?key=\${IMGBB_API_KEY}\`, {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    currentPhotoUrl = result.data.url;
-                    statusEl.textContent = '✅ Photo uploaded successfully!';
-                    statusEl.style.background = '#d4edda';
-                    statusEl.style.color = '#155724';
-                    prevEl.innerHTML = \`<img src="\${currentPhotoUrl}" crossorigin="anonymous" style="max-width:200px;margin-top:10px;border-radius:8px;">\`;
-                    console.log('Photo URL:', currentPhotoUrl);
-                } else {
-                    throw new Error('Upload failed');
-                }
+                const sizeKB = Math.round((compressed.length * 3 / 4) / 1024);
+                statusEl.textContent = \`✅ Photo compressed to ~\${sizeKB}KB!\`;
+                statusEl.style.background = '#d4edda';
+                statusEl.style.color = '#155724';
+                prevEl.innerHTML = \`<img src="\${compressed}" style="max-width:200px;margin-top:10px;border-radius:8px;">\`;
             } catch (error) {
-                console.error('Upload error:', error);
-                statusEl.textContent = '❌ Upload failed! Try again.';
+                console.error('Compress error:', error);
+                statusEl.textContent = '❌ Compression failed! Try again.';
                 statusEl.style.background = '#f8d7da';
                 statusEl.style.color = '#721c24';
-                currentPhotoUrl = null;
+                currentPhotoBase64 = null;
             }
         };
+
+        // Compress image to smaller size
+        function compressImage(file, maxWidth, maxHeight, quality) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+                        
+                        // Calculate new dimensions
+                        if (width > height) {
+                            if (width > maxWidth) {
+                                height *= maxWidth / width;
+                                width = maxWidth;
+                            }
+                        } else {
+                            if (height > maxHeight) {
+                                width *= maxHeight / height;
+                                height = maxHeight;
+                            }
+                        }
+                        
+                        canvas.width = width;
+                        canvas.height = height;
+                        
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        const compressed = canvas.toDataURL('image/jpeg', quality);
+                        resolve(compressed);
+                    };
+                    img.onerror = reject;
+                    img.src = e.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
 
         async function save() {
             const a = {
@@ -301,7 +327,7 @@ app.get('/', (req, res) => {
                 DateOfBirth: document.getElementById('fd').value,
                 PlaceOfBirth: document.getElementById('fb').value,
                 IssuePlace: document.getElementById('fi').value,
-                photo: currentPhotoUrl // Use uploaded URL
+                photo: currentPhotoBase64
             };
             
             if (!a.FirstName || !a.LastName || !a.PassportNo) { alert('Fill required!'); return; }
@@ -441,7 +467,6 @@ app.delete('/api/applicants', (req, res) => {
   res.json({ success: true });
 });
 
-// Broadcast endpoints
 app.post('/api/broadcast', (req, res) => {
   const { location, visaType, timestamp } = req.body;
   if (!location || !visaType) {
@@ -459,5 +484,5 @@ app.get('/api/broadcast', (req, res) => {
 const PORT = parseInt(process.env.PORT || '3000', 10);
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 BLS Server on port ${PORT}`);
-  console.log('☁️ Photos hosted FREE on ImgBB!');
+  console.log('📸 Photos auto-compressed to ~20KB each!');
 });
