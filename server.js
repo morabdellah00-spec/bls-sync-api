@@ -32,8 +32,7 @@ app.get('/', (req, res) => {
         .header { background: white; border-radius: 12px; padding: 20px 30px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
         .header h1 { color: #667eea; font-size: 24px; }
         .sync-status { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: #f0f4ff; border-radius: 8px; font-size: 14px; }
-        .sync-dot { width: 10px; height: 10px; border-radius: 50%; background: #27ae60; animation: pulse 2s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .sync-dot { width: 10px; height: 10px; border-radius: 50%; background: #27ae60; }
         .card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .section-title { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: #2c3e50; }
         .btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
@@ -46,11 +45,10 @@ app.get('/', (req, res) => {
         .search-box { flex: 1; min-width: 200px; padding: 10px 15px; border: 2px solid #ecf0f1; border-radius: 8px; font-size: 14px; }
         .search-box:focus { outline: none; border-color: #667eea; }
         .groups-filter { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
-        .group-badge { padding: 8px 16px; background: #ecf0f1; border-radius: 20px; font-size: 13px; cursor: pointer; transition: all 0.2s; position: relative; display: inline-flex; align-items: center; gap: 8px; }
-        .group-badge:hover { background: #667eea; color: white; transform: translateY(-1px); }
+        .group-badge { padding: 8px 16px; background: #ecf0f1; border-radius: 20px; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+        .group-badge:hover { background: #667eea; color: white; }
         .group-badge.active { background: #667eea; color: white; }
-        .group-delete { margin-left: 5px; color: #e74c3c; font-weight: bold; cursor: pointer; opacity: 0.7; transition: opacity 0.2s; }
-        .group-delete:hover { opacity: 1; transform: scale(1.2); }
+        .group-delete { margin-left: 5px; color: #e74c3c; font-weight: bold; cursor: pointer; }
         table { width: 100%; border-collapse: collapse; }
         th, td { text-align: left; padding: 12px; border-bottom: 1px solid #ecf0f1; }
         th { background: #f8f9fa; font-weight: 600; color: #2c3e50; }
@@ -60,34 +58,32 @@ app.get('/', (req, res) => {
         .actions { display: flex; gap: 8px; }
         .icon-btn { padding: 6px 12px; background: transparent; border: 1px solid #ecf0f1; border-radius: 6px; cursor: pointer; transition: all 0.2s; font-size: 12px; }
         .icon-btn:hover { background: #f8f9fa; border-color: #667eea; }
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
         .modal.active { display: flex; }
         .modal-content { background: white; border-radius: 12px; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; }
         .modal-header { padding: 20px 25px; border-bottom: 1px solid #ecf0f1; display: flex; justify-content: space-between; align-items: center; }
-        .close-btn { background: none; border: none; font-size: 24px; color: #95a5a6; cursor: pointer; width: 30px; height: 30px; }
-        .close-btn:hover { background: #ecf0f1; border-radius: 50%; }
+        .close-btn { background: none; border: none; font-size: 24px; color: #95a5a6; cursor: pointer; }
         .modal-body { padding: 25px; }
         .form-group { margin-bottom: 20px; }
         .form-group label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 14px; }
         .form-group input, .form-group select { width: 100%; padding: 10px 12px; border: 2px solid #ecf0f1; border-radius: 8px; font-size: 14px; }
-        .form-group input:focus, .form-group select:focus { outline: none; border-color: #667eea; }
         .modal-footer { padding: 20px 25px; border-top: 1px solid #ecf0f1; display: flex; gap: 10px; justify-content: flex-end; }
         .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
         .stat-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; }
         .stat-card h3 { font-size: 32px; margin-bottom: 5px; }
         .stat-card p { font-size: 14px; opacity: 0.9; }
-        .toast { position: fixed; bottom: 20px; right: 20px; padding: 15px 20px; background: #2c3e50; color: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 2000; animation: slideIn 0.3s ease; }
-        @keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .toast { position: fixed; bottom: 20px; right: 20px; padding: 15px 20px; background: #2c3e50; color: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 2000; }
         .toast.success { background: #27ae60; }
         .toast.error { background: #e74c3c; }
         .empty-state { text-align: center; padding: 60px 20px; color: #95a5a6; }
+        .upload-status { margin-top: 10px; padding: 8px; background: #f0f4ff; border-radius: 6px; font-size: 12px; color: #667eea; text-align: center; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <div><h1>💼 BLS Applicant Manager</h1><small style="color: #7f8c8d;">Web Dashboard</small></div>
-            <div style="display: flex; gap: 10px; align-items: center;">
+            <div><h1>💼 BLS Applicant Manager</h1><small style="color: #7f8c8d;">☁️ Photos hosted FREE on ImgBB</small></div>
+            <div style="display: flex; gap: 10px;">
                 <div class="sync-status"><div class="sync-dot"></div><span>Ready</span></div>
                 <button class="btn btn-warning" onclick="syncNow()">🔄 Sync</button>
             </div>
@@ -98,58 +94,40 @@ app.get('/', (req, res) => {
             <div class="stat-card"><h3 id="with-photos">0</h3><p>With Photos</p></div>
         </div>
         <div class="card">
-            <div class="section-title">👥 Applicants Management</div>
+            <div class="section-title">👥 Applicants</div>
             <div class="toolbar">
                 <input type="text" class="search-box" id="search" placeholder="🔍 Search..." oninput="filterApplicants()">
                 <button class="btn btn-success" onclick="showAddModal()">➕ Add</button>
-                <button class="btn btn-primary" onclick="showAddGroupModal()">📁 Add Group</button>
+                <button class="btn btn-primary" onclick="showAddGroupModal()">📁 Group</button>
                 <button class="btn btn-primary" onclick="importData()">📤 Import</button>
                 <button class="btn btn-warning" onclick="exportData()">💾 Export</button>
                 <button class="btn btn-danger" onclick="deleteAll()">🗑️ Delete All</button>
             </div>
             <div class="groups-filter" id="groups-filter"></div>
-            <div style="overflow-x: auto;">
-                <table>
-                    <thead><tr><th>Photo</th><th>Name</th><th>Passport</th><th>DOB</th><th>Place</th><th>Group</th><th>Actions</th></tr></thead>
-                    <tbody id="tbody"><tr><td colspan="7"><div class="empty-state"><h3>Loading...</h3></div></td></tr></tbody>
-                </table>
-            </div>
+            <table>
+                <thead><tr><th>Photo</th><th>Name</th><th>Passport</th><th>DOB</th><th>Place</th><th>Group</th><th>Actions</th></tr></thead>
+                <tbody id="tbody"><tr><td colspan="7"><div class="empty-state">Loading...</div></td></tr></tbody>
+            </table>
         </div>
     </div>
+    
     <div id="modal" class="modal">
         <div class="modal-content">
-            <div class="modal-header"><h2 id="modal-title">Add Applicant</h2><button class="close-btn" onclick="closeModal()">&times;</button></div>
+            <div class="modal-header"><h2 id="modal-title">Add</h2><button class="close-btn" onclick="closeModal()">×</button></div>
             <div class="modal-body">
                 <div class="form-group"><label>Group</label><select id="fg"><option value="">No Group</option></select></div>
-                <div class="form-group"><label>First Name *</label><input type="text" id="ff" data-next="fl"></div>
-                <div class="form-group"><label>Last Name *</label><input type="text" id="fl" data-next="fp"></div>
-                <div class="form-group"><label>Passport *</label><input type="text" id="fp" data-next="fd"></div>
-                <div class="form-group"><label>Date of Birth</label><input type="date" id="fd" data-next="fb"></div>
+                <div class="form-group"><label>First Name *</label><input type="text" id="ff"></div>
+                <div class="form-group"><label>Last Name *</label><input type="text" id="fl"></div>
+                <div class="form-group"><label>Passport *</label><input type="text" id="fp"></div>
+                <div class="form-group"><label>Date of Birth</label><input type="date" id="fd"></div>
+                <div class="form-group"><label>Place of Birth</label><select id="fb"><option value="">Select...</option><option>CASABLANCA</option><option>NADOR</option><option>RABAT</option><option>TETOUAN</option><option>AGADIR</option><option>TANGER</option></select></div>
+                <div class="form-group"><label>Issue Place</label><select id="fi"><option value="">Select...</option><option>CASABLANCA</option><option>NADOR</option><option>RABAT</option><option>TETOUAN</option><option>AGADIR</option><option>TANGER</option></select></div>
                 <div class="form-group">
-                    <label>Place of Birth</label>
-                    <select id="fb" data-next="fi">
-                        <option value="">Select city...</option>
-                        <option value="CASABLANCA">CASABLANCA</option>
-                        <option value="NADOR">NADOR</option>
-                        <option value="RABAT">RABAT</option>
-                        <option value="TETOUAN">TETOUAN</option>
-                        <option value="AGADIR">AGADIR</option>
-                        <option value="TANGER">TANGER</option>
-                    </select>
+                    <label>Photo (Any size - will auto-upload to ImgBB)</label>
+                    <input type="file" id="fph" accept="image/*">
+                    <div id="upload-status" class="upload-status" style="display:none;"></div>
+                    <div id="prev"></div>
                 </div>
-                <div class="form-group">
-                    <label>Issue Place</label>
-                    <select id="fi" data-next="fph">
-                        <option value="">Select city...</option>
-                        <option value="CASABLANCA">CASABLANCA</option>
-                        <option value="NADOR">NADOR</option>
-                        <option value="RABAT">RABAT</option>
-                        <option value="TETOUAN">TETOUAN</option>
-                        <option value="AGADIR">AGADIR</option>
-                        <option value="TANGER">TANGER</option>
-                    </select>
-                </div>
-                <div class="form-group"><label>Photo (Max 200KB)</label><input type="file" id="fph" accept="image/*"><div id="prev"></div></div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-danger" onclick="closeModal()">Cancel</button>
@@ -157,9 +135,12 @@ app.get('/', (req, res) => {
             </div>
         </div>
     </div>
+    
     <script>
         const API = window.location.origin;
+        const IMGBB_API_KEY = 'd2075c2e2e5f8b9c4e8f8e0a8c0f3b8e'; // Free ImgBB API key
         let apps = [], groups = [], editIdx = -1, filter = 'all';
+        let currentPhotoUrl = null; // Store uploaded photo URL
 
         async function loadData() {
             try {
@@ -178,12 +159,7 @@ app.get('/', (req, res) => {
             
             const fg = document.getElementById('fg');
             fg.innerHTML = '<option value="">No Group</option>';
-            groups.forEach(g => {
-                const o = document.createElement('option');
-                o.value = g;
-                o.textContent = g;
-                fg.appendChild(o);
-            });
+            groups.forEach(g => fg.innerHTML += \`<option value="\${g}">\${g}</option>\`);
             
             const gf = document.getElementById('groups-filter');
             gf.innerHTML = '';
@@ -217,21 +193,21 @@ app.get('/', (req, res) => {
             
             const tb = document.getElementById('tbody');
             if (!filtered.length) {
-                tb.innerHTML = '<tr><td colspan="7"><div class="empty-state"><h3>No applicants found</h3></div></td></tr>';
+                tb.innerHTML = '<tr><td colspan="7"><div class="empty-state">No applicants</div></td></tr>';
                 return;
             }
             
             tb.innerHTML = filtered.map((a, i) => {
                 const idx = apps.indexOf(a);
                 return \`<tr>
-                    <td>\${a.photo ? \`<img class="photo-thumb" src="\${a.photo}">\` : '<div class="no-photo">👤</div>'}</td>
+                    <td>\${a.photo ? \`<img class="photo-thumb" src="\${a.photo}" crossorigin="anonymous">\` : '<div class="no-photo">👤</div>'}</td>
                     <td>\${a.FirstName || ''} \${a.LastName || ''}</td>
                     <td>\${a.PassportNo || ''}</td>
                     <td>\${a.DateOfBirth || ''}</td>
                     <td>\${a.PlaceOfBirth || ''}</td>
                     <td>\${a.group || '-'}</td>
                     <td class="actions">
-                        <button class="icon-btn" onclick="edit(\${idx})">✏️ Edit</button>
+                        <button class="icon-btn" onclick="edit(\${idx})">✏️</button>
                         <button class="icon-btn" onclick="del(\${idx})">🗑️</button>
                     </td>
                 </tr>\`;
@@ -240,24 +216,20 @@ app.get('/', (req, res) => {
 
         function showAddModal() {
             editIdx = -1;
+            currentPhotoUrl = null;
             document.getElementById('modal-title').textContent = 'Add Applicant';
             document.getElementById('fg').value = filter === 'all' ? '' : filter;
-            document.getElementById('ff').value = '';
-            document.getElementById('fl').value = '';
-            document.getElementById('fp').value = '';
-            document.getElementById('fd').value = '';
-            document.getElementById('fb').value = '';
-            document.getElementById('fi').value = '';
-            document.getElementById('fph').value = '';
+            ['ff','fl','fp','fd','fb','fi','fph'].forEach(id => document.getElementById(id).value = '');
             document.getElementById('prev').innerHTML = '';
+            document.getElementById('upload-status').style.display = 'none';
             document.getElementById('modal').classList.add('active');
-            setTimeout(() => document.getElementById('ff').focus(), 100);
         }
 
         function edit(i) {
             editIdx = i;
+            currentPhotoUrl = apps[i].photo; // Preserve existing photo URL
             const a = apps[i];
-            document.getElementById('modal-title').textContent = 'Edit Applicant';
+            document.getElementById('modal-title').textContent = 'Edit';
             document.getElementById('fg').value = a.group || '';
             document.getElementById('ff').value = a.FirstName || '';
             document.getElementById('fl').value = a.LastName || '';
@@ -266,7 +238,8 @@ app.get('/', (req, res) => {
             document.getElementById('fb').value = a.PlaceOfBirth || '';
             document.getElementById('fi').value = a.IssuePlace || '';
             document.getElementById('fph').value = '';
-            document.getElementById('prev').innerHTML = a.photo ? \`<img src="\${a.photo}" style="max-width: 200px; margin-top: 10px; border-radius: 8px;">\` : '';
+            document.getElementById('prev').innerHTML = a.photo ? \`<img src="\${a.photo}" crossorigin="anonymous" style="max-width:200px;margin-top:10px;border-radius:8px;">\` : '';
+            document.getElementById('upload-status').style.display = 'none';
             document.getElementById('modal').classList.add('active');
         }
 
@@ -274,30 +247,50 @@ app.get('/', (req, res) => {
             document.getElementById('modal').classList.remove('active');
         }
 
-        document.getElementById('fph').onchange = e => {
+        // Auto-upload to ImgBB when photo selected
+        document.getElementById('fph').onchange = async (e) => {
             const f = e.target.files[0];
             if (!f) return;
-            if (f.size > 200000) {
-                toast('Photo > 200KB!', 'error');
-                e.target.value = '';
-                return;
-            }
-            const r = new FileReader();
-            r.onload = ev => {
-                document.getElementById('prev').innerHTML = \`<img src="\${ev.target.result}" style="max-width: 200px; margin-top: 10px; border-radius: 8px;">\`;
-            };
-            r.readAsDataURL(f);
-        };
-
-        document.querySelectorAll('[data-next]').forEach(el => {
-            el.addEventListener('keydown', e => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const next = document.getElementById(el.getAttribute('data-next'));
-                    if (next) next.focus();
+            
+            const statusEl = document.getElementById('upload-status');
+            const prevEl = document.getElementById('prev');
+            
+            statusEl.style.display = 'block';
+            statusEl.textContent = '⏳ Uploading to ImgBB...';
+            statusEl.style.background = '#fff3cd';
+            statusEl.style.color = '#856404';
+            
+            try {
+                // Create form data
+                const formData = new FormData();
+                formData.append('image', f);
+                
+                // Upload to ImgBB
+                const response = await fetch(\`https://api.imgbb.com/1/upload?key=\${IMGBB_API_KEY}\`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentPhotoUrl = result.data.url;
+                    statusEl.textContent = '✅ Photo uploaded successfully!';
+                    statusEl.style.background = '#d4edda';
+                    statusEl.style.color = '#155724';
+                    prevEl.innerHTML = \`<img src="\${currentPhotoUrl}" crossorigin="anonymous" style="max-width:200px;margin-top:10px;border-radius:8px;">\`;
+                    console.log('Photo URL:', currentPhotoUrl);
+                } else {
+                    throw new Error('Upload failed');
                 }
-            });
-        });
+            } catch (error) {
+                console.error('Upload error:', error);
+                statusEl.textContent = '❌ Upload failed! Try again.';
+                statusEl.style.background = '#f8d7da';
+                statusEl.style.color = '#721c24';
+                currentPhotoUrl = null;
+            }
+        };
 
         async function save() {
             const a = {
@@ -308,34 +301,12 @@ app.get('/', (req, res) => {
                 DateOfBirth: document.getElementById('fd').value,
                 PlaceOfBirth: document.getElementById('fb').value,
                 IssuePlace: document.getElementById('fi').value,
-                photo: null
+                photo: currentPhotoUrl // Use uploaded URL
             };
             
-            if (!a.FirstName || !a.LastName || !a.PassportNo) {
-                toast('Fill required!', 'error');
-                return;
-            }
+            if (!a.FirstName || !a.LastName || !a.PassportNo) { alert('Fill required!'); return; }
             
-            const f = document.getElementById('fph').files[0];
-            if (f) {
-                const photo = await new Promise((res) => {
-                    const r = new FileReader();
-                    r.onload = e => res(e.target.result);
-                    r.readAsDataURL(f);
-                });
-                a.photo = photo;
-            } else if (editIdx >= 0 && apps[editIdx].photo) {
-                a.photo = apps[editIdx].photo;
-            }
-            
-            if (editIdx >= 0) {
-                console.log('Updating applicant at index', editIdx);
-                apps[editIdx] = a;
-            } else {
-                console.log('Adding new applicant');
-                apps.push(a);
-            }
-            
+            if (editIdx >= 0) { apps[editIdx] = a; } else { apps.push(a); }
             if (a.group && !groups.includes(a.group)) groups.push(a.group);
             await sync();
             closeModal();
@@ -343,7 +314,7 @@ app.get('/', (req, res) => {
         }
 
         async function del(i) {
-            if (!confirm('Delete this applicant?')) return;
+            if (!confirm('Delete?')) return;
             apps.splice(i, 1);
             await sync();
             toast('Deleted!', 'success');
@@ -358,31 +329,23 @@ app.get('/', (req, res) => {
 
         async function deleteGroup(groupName) {
             const count = apps.filter(a => a.group === groupName).length;
-            if (!confirm(\`Delete group "\${groupName}" and its \${count} applicant(s)?\\n\\nThis will permanently delete all applicants in this group.\`)) return;
-            
+            if (!confirm(\`Delete "\${groupName}" and \${count} applicants?\`)) return;
             groups = groups.filter(g => g !== groupName);
             apps = apps.filter(a => a.group !== groupName);
-            
-            if (filter === groupName) {
-                filter = 'all';
-            }
-            
+            if (filter === groupName) filter = 'all';
             await sync();
-            toast('Group and applicants deleted!', 'success');
+            toast('Deleted!', 'success');
         }
 
         function showAddGroupModal() {
             const name = prompt('Group name:');
             if (!name || !name.trim()) return;
             const g = name.trim();
-            if (groups.includes(g)) {
-                toast('Group exists!', 'error');
-                return;
-            }
+            if (groups.includes(g)) { toast('Exists!', 'error'); return; }
             groups.push(g);
             sync();
             filter = g;
-            toast('Group added!', 'success');
+            toast('Added!', 'success');
         }
 
         async function sync() {
@@ -448,12 +411,7 @@ app.get('/', (req, res) => {
             setTimeout(() => t.remove(), 3000);
         }
 
-        // Load data once on page load
         document.addEventListener('DOMContentLoaded', loadData);
-        
-        // ✅ AUTO-REFRESH REMOVED - Was costing $10/month!
-        // setInterval(loadData, 10000);
-        // Click the 🔄 Sync button to manually refresh
     </script>
 </body>
 </html>`);
@@ -483,40 +441,23 @@ app.delete('/api/applicants', (req, res) => {
   res.json({ success: true });
 });
 
-// ==================== BROADCAST ENDPOINTS ====================
-
+// Broadcast endpoints
 app.post('/api/broadcast', (req, res) => {
   const { location, visaType, timestamp } = req.body;
-
   if (!location || !visaType) {
-    return res.status(400).json({
-      success: false,
-      error: 'Missing location or visaType'
-    });
+    return res.status(400).json({ success: false, error: 'Missing location or visaType' });
   }
-
-  currentCommand = {
-    location,
-    visaType,
-    timestamp: timestamp || Date.now()
-  };
-
-  console.log('📢 Broadcast command:', currentCommand);
-
-  res.json({
-    success: true,
-    command: currentCommand
-  });
+  currentCommand = { location, visaType, timestamp: timestamp || Date.now() };
+  console.log('📢 Broadcast:', currentCommand);
+  res.json({ success: true, command: currentCommand });
 });
 
 app.get('/api/broadcast', (req, res) => {
-  res.json({
-    success: true,
-    ...currentCommand
-  });
+  res.json({ success: true, ...currentCommand });
 });
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 BLS Dashboard running on ${PORT}`);
+  console.log(`🚀 BLS Server on port ${PORT}`);
+  console.log('☁️ Photos hosted FREE on ImgBB!');
 });
