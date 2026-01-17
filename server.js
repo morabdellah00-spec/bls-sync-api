@@ -81,7 +81,7 @@ app.get('/', (req, res) => {
 <body>
     <div class="container">
         <div class="header">
-            <div><h1>💼 BLS Applicant Manager</h1><small style="color: #7f8c8d;">☁️ Photos hosted on BLS servers (FREE & HIGH QUALITY!)</small></div>
+            <div><h1>💼 BLS Applicant Manager</h1><small style="color: #7f8c8d;">📸 High Quality Photos (400x400px, ~50KB)</small></div>
             <div style="display: flex; gap: 10px;">
                 <div class="sync-status"><div class="sync-dot"></div><span>Ready</span></div>
                 <button class="btn btn-warning" onclick="syncNow()">🔄 Sync</button>
@@ -122,7 +122,7 @@ app.get('/', (req, res) => {
                 <div class="form-group"><label>Place of Birth</label><select id="fb"><option value="">Select...</option><option>CASABLANCA</option><option>NADOR</option><option>RABAT</option><option>TETOUAN</option><option>AGADIR</option><option>TANGER</option></select></div>
                 <div class="form-group"><label>Issue Place</label><select id="fi"><option value="">Select...</option><option>CASABLANCA</option><option>NADOR</option><option>RABAT</option><option>TETOUAN</option><option>AGADIR</option><option>TANGER</option></select></div>
                 <div class="form-group">
-                    <label>Photo (Will upload to BLS servers - HIGH QUALITY!)</label>
+                    <label>Photo (Any size - will be optimized to 400x400px HIGH QUALITY)</label>
                     <input type="file" id="fph" accept="image/*">
                     <div id="upload-status" class="upload-status" style="display:none;"></div>
                     <div id="prev"></div>
@@ -137,9 +137,8 @@ app.get('/', (req, res) => {
     
     <script>
         const API = window.location.origin;
-        const BLS_UPLOAD_URL = 'https://www.blsspainmorocco.net/MAR/BlsAppointment/UploadApplicantPhoto';
         let apps = [], groups = [], editIdx = -1, filter = 'all';
-        let currentPhotoUrl = null;
+        let currentPhotoBase64 = null;
 
         async function loadData() {
             try {
@@ -199,7 +198,7 @@ app.get('/', (req, res) => {
             tb.innerHTML = filtered.map((a, i) => {
                 const idx = apps.indexOf(a);
                 return \`<tr>
-                    <td>\${a.photo ? \`<img class="photo-thumb" src="\${a.photo}" crossorigin="anonymous">\` : '<div class="no-photo">👤</div>'}</td>
+                    <td>\${a.photo ? \`<img class="photo-thumb" src="\${a.photo}">\` : '<div class="no-photo">👤</div>'}</td>
                     <td>\${a.FirstName || ''} \${a.LastName || ''}</td>
                     <td>\${a.PassportNo || ''}</td>
                     <td>\${a.DateOfBirth || ''}</td>
@@ -215,7 +214,7 @@ app.get('/', (req, res) => {
 
         function showAddModal() {
             editIdx = -1;
-            currentPhotoUrl = null;
+            currentPhotoBase64 = null;
             document.getElementById('modal-title').textContent = 'Add Applicant';
             document.getElementById('fg').value = filter === 'all' ? '' : filter;
             ['ff','fl','fp','fd','fb','fi','fph'].forEach(id => document.getElementById(id).value = '');
@@ -226,7 +225,7 @@ app.get('/', (req, res) => {
 
         function edit(i) {
             editIdx = i;
-            currentPhotoUrl = apps[i].photo;
+            currentPhotoBase64 = apps[i].photo;
             const a = apps[i];
             document.getElementById('modal-title').textContent = 'Edit';
             document.getElementById('fg').value = a.group || '';
@@ -237,7 +236,7 @@ app.get('/', (req, res) => {
             document.getElementById('fb').value = a.PlaceOfBirth || '';
             document.getElementById('fi').value = a.IssuePlace || '';
             document.getElementById('fph').value = '';
-            document.getElementById('prev').innerHTML = a.photo ? \`<img src="\${a.photo}" crossorigin="anonymous" style="max-width:200px;margin-top:10px;border-radius:8px;">\` : '';
+            document.getElementById('prev').innerHTML = a.photo ? \`<img src="\${a.photo}" style="max-width:200px;margin-top:10px;border-radius:8px;">\` : '';
             document.getElementById('upload-status').style.display = 'none';
             document.getElementById('modal').classList.add('active');
         }
@@ -246,7 +245,7 @@ app.get('/', (req, res) => {
             document.getElementById('modal').classList.remove('active');
         }
 
-        // Upload to BLS servers when photo selected
+        // Compress to HIGH QUALITY (400x400, 90% quality)
         document.getElementById('fph').onchange = async (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -255,49 +254,73 @@ app.get('/', (req, res) => {
             const prevEl = document.getElementById('prev');
             
             statusEl.style.display = 'block';
-            statusEl.textContent = '⏳ Uploading to BLS servers...';
+            statusEl.textContent = '⏳ Optimizing photo (HIGH QUALITY)...';
             statusEl.style.background = '#fff3cd';
             statusEl.style.color = '#856404';
             
             try {
-                // Create form data for BLS upload
-                const formData = new FormData();
-                formData.append('ApplicantPhotoId', file);
+                // HIGH QUALITY: 400x400px, 90% quality
+                const compressed = await compressImage(file, 400, 400, 0.9);
+                currentPhotoBase64 = compressed;
                 
-                // Upload to BLS
-                const response = await fetch(BLS_UPLOAD_URL, {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                if (!response.ok) {
-                    throw new Error('BLS upload failed');
-                }
-                
-                const result = await response.text();
-                
-                // Extract file ID from response
-                // Response format: "20707d1b-6180-44b9-afc7-2eccb564e3eb"
-                const fileId = result.trim().replace(/"/g, '');
-                
-                if (fileId && fileId.length > 10) {
-                    currentPhotoUrl = \`https://www.blsspainmorocco.net/MAR/query/getfile?fileid=\${fileId}\`;
-                    statusEl.textContent = '✅ Photo uploaded to BLS! (HIGH QUALITY)';
-                    statusEl.style.background = '#d4edda';
-                    statusEl.style.color = '#155724';
-                    prevEl.innerHTML = \`<img src="\${currentPhotoUrl}" crossorigin="anonymous" style="max-width:200px;margin-top:10px;border-radius:8px;">\`;
-                    console.log('BLS Photo URL:', currentPhotoUrl);
-                } else {
-                    throw new Error('Invalid file ID');
-                }
+                const sizeKB = Math.round((compressed.length * 3 / 4) / 1024);
+                statusEl.textContent = \`✅ Photo optimized to ~\${sizeKB}KB (HIGH QUALITY)!\`;
+                statusEl.style.background = '#d4edda';
+                statusEl.style.color = '#155724';
+                prevEl.innerHTML = \`<img src="\${compressed}" style="max-width:200px;margin-top:10px;border-radius:8px;">\`;
             } catch (error) {
-                console.error('Upload error:', error);
-                statusEl.textContent = '❌ Upload to BLS failed! Try again.';
+                console.error('Optimization error:', error);
+                statusEl.textContent = '❌ Optimization failed! Try again.';
                 statusEl.style.background = '#f8d7da';
                 statusEl.style.color = '#721c24';
-                currentPhotoUrl = null;
+                currentPhotoBase64 = null;
             }
         };
+
+        // Compress image maintaining HIGH QUALITY
+        function compressImage(file, maxWidth, maxHeight, quality) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+                        
+                        // Calculate new dimensions (maintain aspect ratio)
+                        if (width > height) {
+                            if (width > maxWidth) {
+                                height *= maxWidth / width;
+                                width = maxWidth;
+                            }
+                        } else {
+                            if (height > maxHeight) {
+                                width *= maxHeight / height;
+                                height = maxHeight;
+                            }
+                        }
+                        
+                        canvas.width = width;
+                        canvas.height = height;
+                        
+                        const ctx = canvas.getContext('2d');
+                        // Use better image smoothing
+                        ctx.imageSmoothingEnabled = true;
+                        ctx.imageSmoothingQuality = 'high';
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        // High quality JPEG (90%)
+                        const compressed = canvas.toDataURL('image/jpeg', quality);
+                        resolve(compressed);
+                    };
+                    img.onerror = reject;
+                    img.src = e.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
 
         async function save() {
             const a = {
@@ -308,7 +331,7 @@ app.get('/', (req, res) => {
                 DateOfBirth: document.getElementById('fd').value,
                 PlaceOfBirth: document.getElementById('fb').value,
                 IssuePlace: document.getElementById('fi').value,
-                photo: currentPhotoUrl
+                photo: currentPhotoBase64
             };
             
             if (!a.FirstName || !a.LastName || !a.PassportNo) { alert('Fill required!'); return; }
@@ -465,6 +488,5 @@ app.get('/api/broadcast', (req, res) => {
 const PORT = parseInt(process.env.PORT || '3000', 10);
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 BLS Server on port ${PORT}`);
-  console.log('☁️ Photos hosted on BLS servers - FREE & HIGH QUALITY!');
-  console.log('💰 Cost: Only URLs stored (~100 bytes each)');
+  console.log('📸 HIGH QUALITY Photos: 400x400px, 90% quality, ~50KB each');
 });
