@@ -11,6 +11,13 @@ let sharedData = {
   lastModified: new Date().toISOString()
 };
 
+// Broadcast command storage
+let currentCommand = {
+  location: '',
+  visaType: '',
+  timestamp: Date.now()
+};
+
 app.get('/', (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="en">
@@ -474,6 +481,39 @@ app.post('/api/applicants/sync', (req, res) => {
 app.delete('/api/applicants', (req, res) => {
   sharedData = { applicants: [], groups: [], lastModified: new Date().toISOString() };
   res.json({ success: true });
+});
+
+// ==================== BROADCAST ENDPOINTS ====================
+
+app.post('/api/broadcast', (req, res) => {
+  const { location, visaType, timestamp } = req.body;
+
+  if (!location || !visaType) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing location or visaType'
+    });
+  }
+
+  currentCommand = {
+    location,
+    visaType,
+    timestamp: timestamp || Date.now()
+  };
+
+  console.log('📢 Broadcast command:', currentCommand);
+
+  res.json({
+    success: true,
+    command: currentCommand
+  });
+});
+
+app.get('/api/broadcast', (req, res) => {
+  res.json({
+    success: true,
+    ...currentCommand
+  });
 });
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
