@@ -1,10 +1,19 @@
 const express = require('express');
 const cors = require('cors');
+const expressWs = require('express-ws');
+const path = require('path');
 
 const app = express();
+expressWs(app);
+
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
+// Serve static files
+app.use(express.static(__dirname));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Data storage
 let sharedData = {
   applicants: [],
   groups: [],
@@ -18,468 +27,107 @@ let currentCommand = {
   timestamp: Date.now()
 };
 
+// WebSocket connections
+const wsConnections = new Set();
+
+// Periodic cleanup of dead connections
+setInterval(() => {
+  let cleaned = 0;
+  wsConnections.forEach(ws => {
+    if (ws.readyState !== 1) {
+      wsConnections.delete(ws);
+      cleaned++;
+    }
+  });
+  if (cleaned > 0) {
+    console.log(`🧹 Cleaned ${cleaned} dead WebSocket connection(s)`);
+  }
+}, 60000);
+
+// Broadcast to all WebSocket clients (WITH PHOTOS)
+function broadcastToAll(message) {
+  const messageStr = JSON.stringify(message);
+  let sent = 0;
+  wsConnections.forEach(ws => {
+    if (ws.readyState === 1) {
+      ws.send(messageStr);
+      sent++;
+    }
+  });
+  console.log(`📡 Broadcasted to ${sent} client(s)`);
+}
+
+// ==================== ROUTES ====================
+
+// Serve dashboard at root
 app.get('/', (req, res) => {
-  res.send(`<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BLS Applicant Manager</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
-        .container { max-width: 1400px; margin: 0 auto; }
-        .header { background: white; border-radius: 12px; padding: 20px 30px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
-        .header h1 { color: #667eea; font-size: 24px; }
-        .sync-status { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: #f0f4ff; border-radius: 8px; font-size: 14px; }
-        .sync-dot { width: 10px; height: 10px; border-radius: 50%; background: #27ae60; animation: pulse 2s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-        .card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .section-title { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: #2c3e50; }
-        .btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-        .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-        .btn-primary { background: #667eea; color: white; }
-        .btn-success { background: #27ae60; color: white; }
-        .btn-danger { background: #e74c3c; color: white; }
-        .btn-warning { background: #f39c12; color: white; }
-        .toolbar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
-        .search-box { flex: 1; min-width: 200px; padding: 10px 15px; border: 2px solid #ecf0f1; border-radius: 8px; font-size: 14px; }
-        .search-box:focus { outline: none; border-color: #667eea; }
-        .groups-filter { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
-        .group-badge { padding: 8px 16px; background: #ecf0f1; border-radius: 20px; font-size: 13px; cursor: pointer; transition: all 0.2s; position: relative; display: inline-flex; align-items: center; gap: 8px; }
-        .group-badge:hover { background: #667eea; color: white; transform: translateY(-1px); }
-        .group-badge.active { background: #667eea; color: white; }
-        .group-delete { margin-left: 5px; color: #e74c3c; font-weight: bold; cursor: pointer; opacity: 0.7; transition: opacity 0.2s; }
-        .group-delete:hover { opacity: 1; transform: scale(1.2); }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #ecf0f1; }
-        th { background: #f8f9fa; font-weight: 600; color: #2c3e50; }
-        tr:hover { background: #f8f9fa; }
-        .photo-thumb { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid #667eea; }
-        .no-photo { width: 40px; height: 40px; border-radius: 50%; background: #ecf0f1; display: flex; align-items: center; justify-content: center; color: #95a5a6; font-size: 18px; }
-        .actions { display: flex; gap: 8px; }
-        .icon-btn { padding: 6px 12px; background: transparent; border: 1px solid #ecf0f1; border-radius: 6px; cursor: pointer; transition: all 0.2s; font-size: 12px; }
-        .icon-btn:hover { background: #f8f9fa; border-color: #667eea; }
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
-        .modal.active { display: flex; }
-        .modal-content { background: white; border-radius: 12px; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; }
-        .modal-header { padding: 20px 25px; border-bottom: 1px solid #ecf0f1; display: flex; justify-content: space-between; align-items: center; }
-        .close-btn { background: none; border: none; font-size: 24px; color: #95a5a6; cursor: pointer; width: 30px; height: 30px; }
-        .close-btn:hover { background: #ecf0f1; border-radius: 50%; }
-        .modal-body { padding: 25px; }
-        .form-group { margin-bottom: 20px; }
-        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 14px; }
-        .form-group input, .form-group select { width: 100%; padding: 10px 12px; border: 2px solid #ecf0f1; border-radius: 8px; font-size: 14px; }
-        .form-group input:focus, .form-group select:focus { outline: none; border-color: #667eea; }
-        .modal-footer { padding: 20px 25px; border-top: 1px solid #ecf0f1; display: flex; gap: 10px; justify-content: flex-end; }
-        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
-        .stat-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; }
-        .stat-card h3 { font-size: 32px; margin-bottom: 5px; }
-        .stat-card p { font-size: 14px; opacity: 0.9; }
-        .toast { position: fixed; bottom: 20px; right: 20px; padding: 15px 20px; background: #2c3e50; color: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 2000; animation: slideIn 0.3s ease; }
-        @keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-        .toast.success { background: #27ae60; }
-        .toast.error { background: #e74c3c; }
-        .empty-state { text-align: center; padding: 60px 20px; color: #95a5a6; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div><h1>💼 BLS Applicant Manager</h1><small style="color: #7f8c8d;">Web Dashboard</small></div>
-            <div style="display: flex; gap: 10px; align-items: center;">
-                <div class="sync-status"><div class="sync-dot"></div><span>Ready</span></div>
-                <button class="btn btn-warning" onclick="syncNow()">🔄 Sync</button>
-            </div>
-        </div>
-        <div class="stats">
-            <div class="stat-card"><h3 id="total-applicants">0</h3><p>Total Applicants</p></div>
-            <div class="stat-card"><h3 id="total-groups">0</h3><p>Groups</p></div>
-            <div class="stat-card"><h3 id="with-photos">0</h3><p>With Photos</p></div>
-        </div>
-        <div class="card">
-            <div class="section-title">👥 Applicants Management</div>
-            <div class="toolbar">
-                <input type="text" class="search-box" id="search" placeholder="🔍 Search..." oninput="filterApplicants()">
-                <button class="btn btn-success" onclick="showAddModal()">➕ Add</button>
-                <button class="btn btn-primary" onclick="showAddGroupModal()">📁 Add Group</button>
-                <button class="btn btn-primary" onclick="importData()">📤 Import</button>
-                <button class="btn btn-warning" onclick="exportData()">💾 Export</button>
-                <button class="btn btn-danger" onclick="deleteAll()">🗑️ Delete All</button>
-            </div>
-            <div class="groups-filter" id="groups-filter"></div>
-            <div style="overflow-x: auto;">
-                <table>
-                    <thead><tr><th>Photo</th><th>Name</th><th>Passport</th><th>DOB</th><th>Place</th><th>Group</th><th>Actions</th></tr></thead>
-                    <tbody id="tbody"><tr><td colspan="7"><div class="empty-state"><h3>Loading...</h3></div></td></tr></tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-    <div id="modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header"><h2 id="modal-title">Add Applicant</h2><button class="close-btn" onclick="closeModal()">&times;</button></div>
-            <div class="modal-body">
-                <div class="form-group"><label>Group</label><select id="fg"><option value="">No Group</option></select></div>
-                <div class="form-group"><label>First Name *</label><input type="text" id="ff" data-next="fl"></div>
-                <div class="form-group"><label>Last Name *</label><input type="text" id="fl" data-next="fp"></div>
-                <div class="form-group"><label>Passport *</label><input type="text" id="fp" data-next="fd"></div>
-                <div class="form-group"><label>Date of Birth</label><input type="date" id="fd" data-next="fb"></div>
-                <div class="form-group">
-                    <label>Place of Birth</label>
-                    <select id="fb" data-next="fi">
-                        <option value="">Select city...</option>
-                        <option value="CASABLANCA">CASABLANCA</option>
-                        <option value="NADOR">NADOR</option>
-                        <option value="RABAT">RABAT</option>
-                        <option value="TETOUAN">TETOUAN</option>
-                        <option value="AGADIR">AGADIR</option>
-                        <option value="TANGER">TANGER</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Issue Place</label>
-                    <select id="fi" data-next="fph">
-                        <option value="">Select city...</option>
-                        <option value="CASABLANCA">CASABLANCA</option>
-                        <option value="NADOR">NADOR</option>
-                        <option value="RABAT">RABAT</option>
-                        <option value="TETOUAN">TETOUAN</option>
-                        <option value="AGADIR">AGADIR</option>
-                        <option value="TANGER">TANGER</option>
-                    </select>
-                </div>
-                <div class="form-group"><label>Photo (Max 200KB)</label><input type="file" id="fph" accept="image/*"><div id="prev"></div></div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-danger" onclick="closeModal()">Cancel</button>
-                <button class="btn btn-success" onclick="save()">Save</button>
-            </div>
-        </div>
-    </div>
-    <script>
-        const API = window.location.origin;
-        let apps = [], groups = [], editIdx = -1, filter = 'all';
-
-        async function loadData() {
-            try {
-                const r = await fetch(API + '/api/applicants');
-                const d = await r.json();
-                apps = d.applicants || [];
-                groups = d.groups || [];
-                updateUI();
-            } catch (e) { console.error('Load failed', e); }
-        }
-
-        function updateUI() {
-            document.getElementById('total-applicants').textContent = apps.length;
-            document.getElementById('total-groups').textContent = groups.length;
-            document.getElementById('with-photos').textContent = apps.filter(a => a.photo).length;
-            
-            const fg = document.getElementById('fg');
-            fg.innerHTML = '<option value="">No Group</option>';
-            groups.forEach(g => {
-                const o = document.createElement('option');
-                o.value = g;
-                o.textContent = g;
-                fg.appendChild(o);
-            });
-            
-            const gf = document.getElementById('groups-filter');
-            gf.innerHTML = '';
-            const all = document.createElement('div');
-            all.className = 'group-badge' + (filter === 'all' ? ' active' : '');
-            all.textContent = \`All (\${apps.length})\`;
-            all.onclick = () => { filter = 'all'; updateUI(); };
-            gf.appendChild(all);
-            
-            groups.forEach(g => {
-                const cnt = apps.filter(a => a.group === g).length;
-                const badge = document.createElement('div');
-                badge.className = 'group-badge' + (filter === g ? ' active' : '');
-                badge.innerHTML = \`\${g} (\${cnt}) <span class="group-delete" onclick="event.stopPropagation(); deleteGroup('\${g}')">×</span>\`;
-                badge.onclick = () => { filter = g; updateUI(); };
-                gf.appendChild(badge);
-            });
-            
-            filterApplicants();
-        }
-
-        function filterApplicants() {
-            const q = document.getElementById('search').value.toLowerCase();
-            let filtered = apps.filter(a => {
-                if (filter !== 'all' && a.group !== filter) return false;
-                if (!q) return true;
-                return (a.FirstName || '').toLowerCase().includes(q) ||
-                       (a.LastName || '').toLowerCase().includes(q) ||
-                       (a.PassportNo || '').toLowerCase().includes(q);
-            });
-            
-            const tb = document.getElementById('tbody');
-            if (!filtered.length) {
-                tb.innerHTML = '<tr><td colspan="7"><div class="empty-state"><h3>No applicants found</h3></div></td></tr>';
-                return;
-            }
-            
-            tb.innerHTML = filtered.map((a, i) => {
-                const idx = apps.indexOf(a);
-                return \`<tr>
-                    <td>\${a.photo ? \`<img class="photo-thumb" src="\${a.photo}">\` : '<div class="no-photo">👤</div>'}</td>
-                    <td>\${a.FirstName || ''} \${a.LastName || ''}</td>
-                    <td>\${a.PassportNo || ''}</td>
-                    <td>\${a.DateOfBirth || ''}</td>
-                    <td>\${a.PlaceOfBirth || ''}</td>
-                    <td>\${a.group || '-'}</td>
-                    <td class="actions">
-                        <button class="icon-btn" onclick="edit(\${idx})">✏️ Edit</button>
-                        <button class="icon-btn" onclick="del(\${idx})">🗑️</button>
-                    </td>
-                </tr>\`;
-            }).join('');
-        }
-
-        function showAddModal() {
-            editIdx = -1;
-            document.getElementById('modal-title').textContent = 'Add Applicant';
-            document.getElementById('fg').value = filter === 'all' ? '' : filter;
-            document.getElementById('ff').value = '';
-            document.getElementById('fl').value = '';
-            document.getElementById('fp').value = '';
-            document.getElementById('fd').value = '';
-            document.getElementById('fb').value = '';
-            document.getElementById('fi').value = '';
-            document.getElementById('fph').value = '';
-            document.getElementById('prev').innerHTML = '';
-            document.getElementById('modal').classList.add('active');
-            setTimeout(() => document.getElementById('ff').focus(), 100);
-        }
-
-        function edit(i) {
-            editIdx = i;
-            const a = apps[i];
-            document.getElementById('modal-title').textContent = 'Edit Applicant';
-            document.getElementById('fg').value = a.group || '';
-            document.getElementById('ff').value = a.FirstName || '';
-            document.getElementById('fl').value = a.LastName || '';
-            document.getElementById('fp').value = a.PassportNo || '';
-            document.getElementById('fd').value = a.DateOfBirth || '';
-            document.getElementById('fb').value = a.PlaceOfBirth || '';
-            document.getElementById('fi').value = a.IssuePlace || '';
-            document.getElementById('fph').value = '';
-            document.getElementById('prev').innerHTML = a.photo ? \`<img src="\${a.photo}" style="max-width: 200px; margin-top: 10px; border-radius: 8px;">\` : '';
-            document.getElementById('modal').classList.add('active');
-        }
-
-        function closeModal() {
-            document.getElementById('modal').classList.remove('active');
-        }
-
-        document.getElementById('fph').onchange = e => {
-            const f = e.target.files[0];
-            if (!f) return;
-            if (f.size > 200000) {
-                toast('Photo > 200KB!', 'error');
-                e.target.value = '';
-                return;
-            }
-            const r = new FileReader();
-            r.onload = ev => {
-                document.getElementById('prev').innerHTML = \`<img src="\${ev.target.result}" style="max-width: 200px; margin-top: 10px; border-radius: 8px;">\`;
-            };
-            r.readAsDataURL(f);
-        };
-
-        document.querySelectorAll('[data-next]').forEach(el => {
-            el.addEventListener('keydown', e => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const next = document.getElementById(el.getAttribute('data-next'));
-                    if (next) next.focus();
-                }
-            });
-        });
-
-        async function save() {
-            const a = {
-                group: document.getElementById('fg').value,
-                FirstName: document.getElementById('ff').value.trim(),
-                LastName: document.getElementById('fl').value.trim(),
-                PassportNo: document.getElementById('fp').value.trim(),
-                DateOfBirth: document.getElementById('fd').value,
-                PlaceOfBirth: document.getElementById('fb').value,
-                IssuePlace: document.getElementById('fi').value,
-                photo: null
-            };
-            
-            if (!a.FirstName || !a.LastName || !a.PassportNo) {
-                toast('Fill required!', 'error');
-                return;
-            }
-            
-            const f = document.getElementById('fph').files[0];
-            if (f) {
-                const photo = await new Promise((res) => {
-                    const r = new FileReader();
-                    r.onload = e => res(e.target.result);
-                    r.readAsDataURL(f);
-                });
-                a.photo = photo;
-            } else if (editIdx >= 0 && apps[editIdx].photo) {
-                a.photo = apps[editIdx].photo;
-            }
-            
-            if (editIdx >= 0) {
-                console.log('Updating applicant at index', editIdx);
-                apps[editIdx] = a;
-            } else {
-                console.log('Adding new applicant');
-                apps.push(a);
-            }
-            
-            if (a.group && !groups.includes(a.group)) groups.push(a.group);
-            await sync();
-            closeModal();
-            toast('Saved!', 'success');
-        }
-
-        async function del(i) {
-            if (!confirm('Delete this applicant?')) return;
-            apps.splice(i, 1);
-            await sync();
-            toast('Deleted!', 'success');
-        }
-
-        async function deleteAll() {
-            if (!confirm('Delete ALL?')) return;
-            apps = []; groups = [];
-            await sync();
-            toast('All deleted!', 'success');
-        }
-
-        async function deleteGroup(groupName) {
-            const count = apps.filter(a => a.group === groupName).length;
-            if (!confirm(\`Delete group "\${groupName}" and its \${count} applicant(s)?\\n\\nThis will permanently delete all applicants in this group.\`)) return;
-            
-            groups = groups.filter(g => g !== groupName);
-            apps = apps.filter(a => a.group !== groupName);
-            
-            if (filter === groupName) {
-                filter = 'all';
-            }
-            
-            await sync();
-            toast('Group and applicants deleted!', 'success');
-        }
-
-        function showAddGroupModal() {
-            const name = prompt('Group name:');
-            if (!name || !name.trim()) return;
-            const g = name.trim();
-            if (groups.includes(g)) {
-                toast('Group exists!', 'error');
-                return;
-            }
-            groups.push(g);
-            sync();
-            filter = g;
-            toast('Group added!', 'success');
-        }
-
-        async function sync() {
-            try {
-                const r = await fetch(API + '/api/applicants/sync', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ applicants: apps, groups })
-                });
-                const d = await r.json();
-                apps = d.data.applicants;
-                groups = d.data.groups;
-                updateUI();
-            } catch (e) { toast('Sync failed!', 'error'); }
-        }
-
-        async function syncNow() { await loadData(); toast('Synced!', 'success'); }
-
-        function exportData() {
-            const s = JSON.stringify({ applicants: apps, groups }, null, 2);
-            const b = new Blob([s], { type: 'application/json' });
-            const u = URL.createObjectURL(b);
-            const l = document.createElement('a');
-            l.href = u;
-            l.download = \`bls-\${new Date().toISOString().split('T')[0]}.json\`;
-            l.click();
-            URL.revokeObjectURL(u);
-            toast('Exported!', 'success');
-        }
-
-        function importData() {
-            const inp = document.createElement('input');
-            inp.type = 'file';
-            inp.accept = 'application/json';
-            inp.onchange = async e => {
-                const f = e.target.files[0];
-                if (!f) return;
-                const r = new FileReader();
-                r.onload = async ev => {
-                    try {
-                        const d = JSON.parse(ev.target.result);
-                        if (!d.applicants || !Array.isArray(d.applicants)) throw new Error('Invalid');
-                        const existingPassports = new Set(apps.map(a => a.PassportNo));
-                        const newApps = d.applicants.filter(a => !existingPassports.has(a.PassportNo));
-                        apps.push(...newApps);
-                        if (d.groups && Array.isArray(d.groups)) {
-                            d.groups.forEach(g => { if (!groups.includes(g)) groups.push(g); });
-                        }
-                        await sync();
-                        toast(\`Imported \${newApps.length} new!\`, 'success');
-                    } catch (e) { toast('Import failed!', 'error'); }
-                };
-                r.readAsText(f);
-            };
-            inp.click();
-        }
-
-        function toast(msg, type = 'success') {
-            const t = document.createElement('div');
-            t.className = \`toast \${type}\`;
-            t.textContent = msg;
-            document.body.appendChild(t);
-            setTimeout(() => t.remove(), 3000);
-        }
-
-        // Load data once on page load
-        document.addEventListener('DOMContentLoaded', loadData);
-        
-        // ✅ AUTO-REFRESH REMOVED - Was costing $10/month!
-        // setInterval(loadData, 10000);
-        // Click the 🔄 Sync button to manually refresh
-    </script>
-</body>
-</html>`);
+  res.sendFile(path.join(__dirname, 'index.html'), (err) => {
+    if (err) {
+      console.error('Error serving index.html:', err);
+      res.status(500).send('Dashboard not found');
+    }
+  });
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', applicants: sharedData.applicants.length, groups: sharedData.groups.length });
+  res.json({ 
+    status: 'ok', 
+    applicants: sharedData.applicants.length, 
+    groups: sharedData.groups.length,
+    connections: wsConnections.size
+  });
 });
 
+// Get data WITH photos
 app.get('/api/applicants', (req, res) => {
   res.json(sharedData);
 });
 
+app.get('/api/applicants/full', (req, res) => {
+  res.json(sharedData);
+});
+
+// Sync from dashboard (accepts changes and broadcasts)
 app.post('/api/applicants/sync', (req, res) => {
   const { applicants, groups } = req.body;
-  if (!Array.isArray(applicants)) return res.status(400).json({ error: 'Invalid' });
+  if (!Array.isArray(applicants)) {
+    return res.status(400).json({ error: 'Invalid data' });
+  }
   
   sharedData.applicants = applicants;
   sharedData.groups = groups || [];
   sharedData.lastModified = new Date().toISOString();
   
-  res.json({ success: true, data: sharedData, stats: { totalApplicants: sharedData.applicants.length, totalGroups: sharedData.groups.length } });
+  console.log(`💾 Dashboard saved ${applicants.length} applicants`);
+  
+  // Broadcast update WITH photos to all extensions
+  broadcastToAll({
+    type: 'DATA_UPDATED',
+    data: sharedData  // Includes photos!
+  });
+  
+  res.json({ 
+    success: true, 
+    data: sharedData, 
+    stats: { 
+      totalApplicants: sharedData.applicants.length, 
+      totalGroups: sharedData.groups.length 
+    } 
+  });
 });
 
 app.delete('/api/applicants', (req, res) => {
-  sharedData = { applicants: [], groups: [], lastModified: new Date().toISOString() };
+  sharedData = { 
+    applicants: [], 
+    groups: [], 
+    lastModified: new Date().toISOString() 
+  };
+  
+  broadcastToAll({
+    type: 'DATA_UPDATED',
+    data: sharedData
+  });
+  
   res.json({ success: true });
 });
 
@@ -516,7 +164,49 @@ app.get('/api/broadcast', (req, res) => {
   });
 });
 
+// ==================== WEBSOCKET ====================
+
+app.ws('/ws', (ws, req) => {
+  console.log('📡 WebSocket client connected');
+  wsConnections.add(ws);
+  console.log(`👥 Total connections: ${wsConnections.size}`);
+
+  // Send initial data WITH photos immediately
+  ws.send(JSON.stringify({
+    type: 'INITIAL_DATA',
+    data: sharedData  // Includes photos!
+  }));
+
+  ws.on('message', (msg) => {
+    try {
+      const message = JSON.parse(msg);
+      
+      if (message.type === 'PING') {
+        ws.send(JSON.stringify({ type: 'PONG' }));
+      }
+    } catch (e) {
+      console.error('Invalid message:', e);
+    }
+  });
+
+  ws.on('close', () => {
+    console.log('📡 WebSocket client disconnected');
+    wsConnections.delete(ws);
+    console.log(`👥 Total connections: ${wsConnections.size}`);
+  });
+
+  ws.on('error', (error) => {
+    console.error('WebSocket error:', error);
+    wsConnections.delete(ws);
+  });
+});
+
+// ==================== START SERVER ====================
+
 const PORT = parseInt(process.env.PORT || '3000', 10);
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 BLS Dashboard running on ${PORT}`);
+  console.log(`🚀 BLS Server running on port ${PORT}`);
+  console.log(`📊 Dashboard: http://localhost:${PORT}`);
+  console.log(`🔌 WebSocket: ws://localhost:${PORT}/ws`);
+  console.log('💡 WebSocket sends photos for instant sync!');
 });
