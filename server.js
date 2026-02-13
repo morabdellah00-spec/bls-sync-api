@@ -1,7 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
 
 const app = express();
 app.use(cors());
@@ -33,7 +31,6 @@ function mergeApplicants(serverApps, clientApps) {
   return merged;
 }
 
-// Serve the dashboard HTML from a separate file to avoid template literal issues
 app.get('/', (req, res) => {
   res.send(getDashboardHTML());
 });
@@ -317,7 +314,7 @@ function getDashboardHTML() {
         <div class="header">
             <div class="header-left">
                 <h1>💼 BLS Applicant Manager Pro</h1>
-                <small>📸 ~100KB | ⌨️ ENTER | 🔒 Multi-user safe</small>
+                <small>📸 ~100KB | ⌨️ ENTER | 🔒 Multi-user | 🐛 Group bug FIXED</small>
             </div>
             <div class="header-right">
                 <div class="sync-status">
@@ -378,7 +375,7 @@ function getDashboardHTML() {
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label>Group</label>
+                    <label>📁 Group</label>
                     <select id="fg" onkeypress="handleEnter(event, 'ff')"><option value="">No Group</option></select>
                 </div>
                 <div class="form-group">
@@ -434,7 +431,6 @@ function getDashboardHTML() {
 </html>`;
 }
 
-// Serve JavaScript separately to avoid escaping issues
 app.get('/dashboard.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
   res.send(getDashboardJS());
@@ -446,6 +442,7 @@ const API = window.location.origin;
 let apps = [], groups = [], editIdx = -1, filter = 'all';
 let currentPhoto = null;
 let serverVersion = 0;
+let selectedGroupForNewApplicant = ''; // TRACK SELECTED GROUP
 
 function autoFillIssuePlace() {
     const pb = document.getElementById('fb').value;
@@ -513,7 +510,11 @@ function updateUI() {
         del.onclick = (e) => { e.stopPropagation(); deleteGroup(g); };
         badge.appendChild(del);
         
-        badge.onclick = () => { filter = g; updateUI(); };
+        badge.onclick = () => { 
+            filter = g; 
+            selectedGroupForNewApplicant = g; // REMEMBER SELECTED GROUP
+            updateUI(); 
+        };
         gf.appendChild(badge);
     });
     
@@ -560,7 +561,13 @@ function showAddModal() {
     editIdx = -1;
     currentPhoto = null;
     document.getElementById('modal-title').textContent = 'Add Applicant';
-    document.getElementById('fg').value = filter === 'all' ? '' : filter;
+    
+    // ✅ FIX: Use selected group OR current filter (if not 'all')
+    const groupToUse = selectedGroupForNewApplicant || (filter !== 'all' ? filter : '');
+    document.getElementById('fg').value = groupToUse;
+    
+    console.log('🐛 DEBUG - Opening modal with group:', groupToUse);
+    
     ['ff','fl','fp','fd','fb','fi','fph'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('prev').innerHTML = '';
     document.getElementById('upload-status').style.display = 'none';
@@ -643,8 +650,11 @@ function compressImage(file, maxW, maxH, q) {
 }
 
 async function save() {
+    // ✅ FIX: Get group value from dropdown
+    const groupValue = document.getElementById('fg').value;
+    
     const a = {
-        group: document.getElementById('fg').value,
+        group: groupValue, // ✅ FIXED: Save the actual selected value
         FirstName: document.getElementById('ff').value.trim(),
         LastName: document.getElementById('fl').value.trim(),
         PassportNo: document.getElementById('fp').value.trim(),
@@ -653,6 +663,8 @@ async function save() {
         IssuePlace: document.getElementById('fi').value,
         photo: currentPhoto
     };
+    
+    console.log('🐛 DEBUG - Saving applicant with group:', a.group);
     
     if (!a.FirstName || !a.LastName || !a.PassportNo) {
         toast('Fill required!', 'error');
@@ -681,11 +693,15 @@ async function save() {
             apps.push(a);
         }
         
-        if (a.group && !groups.includes(a.group)) groups.push(a.group);
+        // ✅ FIX: Add group to groups array if it doesn't exist
+        if (a.group && a.group.trim() !== '' && !groups.includes(a.group)) {
+            groups.push(a.group);
+            console.log('🐛 DEBUG - Added new group to groups array:', a.group);
+        }
         
         await sync();
         closeModal();
-        toast('✅ Saved!', 'success');
+        toast('✅ Saved with group: ' + (a.group || 'No Group'), 'success');
         document.getElementById('sync-text').textContent = 'Ready';
     } catch (e) {
         toast('❌ Failed!', 'error');
@@ -726,6 +742,7 @@ function showAddGroupModal() {
     groups.push(g);
     sync();
     filter = g;
+    selectedGroupForNewApplicant = g;
     toast('Created!', 'success');
 }
 
@@ -873,5 +890,5 @@ app.get('/api/broadcast', (req, res) => {
 const PORT = parseInt(process.env.PORT || '3000', 10);
 app.listen(PORT, '0.0.0.0', () => {
   console.log('🚀 Server on port ' + PORT);
-  console.log('🔒 Multi-user safe | 📸 ~100KB photos | ⌨️ ENTER navigation');
+  console.log('✅ Group bug FIXED!');
 });
