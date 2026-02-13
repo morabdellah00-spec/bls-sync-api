@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 app.use(cors());
@@ -18,7 +20,6 @@ let currentCommand = {
   timestamp: Date.now()
 };
 
-// Smart merge function
 function mergeApplicants(serverApps, clientApps) {
   const merged = [...serverApps];
   const serverPassports = new Set(serverApps.map(a => a.PassportNo));
@@ -32,8 +33,13 @@ function mergeApplicants(serverApps, clientApps) {
   return merged;
 }
 
+// Serve the dashboard HTML from a separate file to avoid template literal issues
 app.get('/', (req, res) => {
-  res.send(`<!DOCTYPE html>
+  res.send(getDashboardHTML());
+});
+
+function getDashboardHTML() {
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -311,7 +317,7 @@ app.get('/', (req, res) => {
         <div class="header">
             <div class="header-left">
                 <h1>💼 BLS Applicant Manager Pro</h1>
-                <small>📸 ~100KB | ⌨️ ENTER navigation | 🔒 Multi-user safe</small>
+                <small>📸 ~100KB | ⌨️ ENTER | 🔒 Multi-user safe</small>
             </div>
             <div class="header-right">
                 <div class="sync-status">
@@ -423,370 +429,394 @@ app.get('/', (req, res) => {
         </div>
     </div>
     
-    <script>
-        const API = window.location.origin;
-        let apps = [], groups = [], editIdx = -1, filter = 'all';
-        let currentPhoto = null;
-        let serverVersion = 0;
+    <script src="/dashboard.js"></script>
+</body>
+</html>`;
+}
 
-        function autoFillIssuePlace() {
-            const pb = document.getElementById('fb').value;
-            const ip = document.getElementById('fi');
-            if (pb && !ip.value) ip.value = pb;
+// Serve JavaScript separately to avoid escaping issues
+app.get('/dashboard.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript');
+  res.send(getDashboardJS());
+});
+
+function getDashboardJS() {
+  return `
+const API = window.location.origin;
+let apps = [], groups = [], editIdx = -1, filter = 'all';
+let currentPhoto = null;
+let serverVersion = 0;
+
+function autoFillIssuePlace() {
+    const pb = document.getElementById('fb').value;
+    const ip = document.getElementById('fi');
+    if (pb && !ip.value) ip.value = pb;
+}
+
+function handleEnter(e, next) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        const n = document.getElementById(next);
+        if (n) n.focus();
+        else save();
+    }
+}
+
+async function loadData() {
+    try {
+        const r = await fetch(API + '/api/applicants');
+        const d = await r.json();
+        apps = d.applicants || [];
+        groups = d.groups || [];
+        serverVersion = d.version || 0;
+        updateUI();
+    } catch (e) { 
+        console.error(e);
+        toast('Load failed', 'error');
+    }
+}
+
+function updateUI() {
+    document.getElementById('total-applicants').textContent = apps.length;
+    document.getElementById('total-groups').textContent = groups.length;
+    document.getElementById('with-photos').textContent = apps.filter(a => a.photo).length;
+    
+    const fg = document.getElementById('fg');
+    fg.innerHTML = '<option value="">No Group</option>';
+    groups.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g;
+        opt.textContent = g;
+        fg.appendChild(opt);
+    });
+    
+    const gf = document.getElementById('groups-filter');
+    gf.innerHTML = '';
+    const all = document.createElement('div');
+    all.className = 'group-badge' + (filter === 'all' ? ' active' : '');
+    all.textContent = 'All (' + apps.length + ')';
+    all.onclick = () => { filter = 'all'; updateUI(); };
+    gf.appendChild(all);
+    
+    groups.forEach(g => {
+        const cnt = apps.filter(a => a.group === g).length;
+        const badge = document.createElement('div');
+        badge.className = 'group-badge' + (filter === g ? ' active' : '');
+        
+        const text = document.createElement('span');
+        text.textContent = g + ' (' + cnt + ') ';
+        badge.appendChild(text);
+        
+        const del = document.createElement('span');
+        del.className = 'group-delete';
+        del.textContent = '×';
+        del.onclick = (e) => { e.stopPropagation(); deleteGroup(g); };
+        badge.appendChild(del);
+        
+        badge.onclick = () => { filter = g; updateUI(); };
+        gf.appendChild(badge);
+    });
+    
+    filterApplicants();
+}
+
+function filterApplicants() {
+    const q = document.getElementById('search').value.toLowerCase();
+    let filtered = apps.filter(a => {
+        if (filter !== 'all' && a.group !== filter) return false;
+        if (!q) return true;
+        return (a.FirstName || '').toLowerCase().includes(q) ||
+               (a.LastName || '').toLowerCase().includes(q) ||
+               (a.PassportNo || '').toLowerCase().includes(q);
+    });
+    
+    const tb = document.getElementById('tbody');
+    if (!filtered.length) {
+        tb.innerHTML = '<tr><td colspan="7"><div class="empty-state">No applicants</div></td></tr>';
+        return;
+    }
+    
+    tb.innerHTML = '';
+    filtered.forEach(a => {
+        const idx = apps.indexOf(a);
+        const tr = document.createElement('tr');
+        
+        tr.innerHTML = '<td>' + (a.photo ? '<img class="photo-thumb" src="' + a.photo + '">' : '<div class="no-photo">👤</div>') + '</td>' +
+            '<td><strong>' + (a.FirstName || '') + ' ' + (a.LastName || '') + '</strong></td>' +
+            '<td>' + (a.PassportNo || '') + '</td>' +
+            '<td>' + (a.DateOfBirth || '-') + '</td>' +
+            '<td>' + (a.PlaceOfBirth || '-') + '</td>' +
+            '<td>' + (a.group || '-') + '</td>' +
+            '<td class="actions">' +
+            '<button class="icon-btn" onclick="edit(' + idx + ')">✏️</button>' +
+            '<button class="icon-btn" onclick="del(' + idx + ')">🗑️</button>' +
+            '</td>';
+        
+        tb.appendChild(tr);
+    });
+}
+
+function showAddModal() {
+    editIdx = -1;
+    currentPhoto = null;
+    document.getElementById('modal-title').textContent = 'Add Applicant';
+    document.getElementById('fg').value = filter === 'all' ? '' : filter;
+    ['ff','fl','fp','fd','fb','fi','fph'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('prev').innerHTML = '';
+    document.getElementById('upload-status').style.display = 'none';
+    document.getElementById('modal').classList.add('active');
+    setTimeout(() => document.getElementById('fg').focus(), 100);
+}
+
+function edit(i) {
+    editIdx = i;
+    currentPhoto = apps[i].photo;
+    const a = apps[i];
+    document.getElementById('modal-title').textContent = 'Edit';
+    document.getElementById('fg').value = a.group || '';
+    document.getElementById('ff').value = a.FirstName || '';
+    document.getElementById('fl').value = a.LastName || '';
+    document.getElementById('fp').value = a.PassportNo || '';
+    document.getElementById('fd').value = a.DateOfBirth || '';
+    document.getElementById('fb').value = a.PlaceOfBirth || '';
+    document.getElementById('fi').value = a.IssuePlace || '';
+    document.getElementById('fph').value = '';
+    document.getElementById('prev').innerHTML = a.photo ? '<img src="' + a.photo + '" style="max-width:200px;margin-top:10px;border-radius:12px;">' : '';
+    document.getElementById('upload-status').style.display = 'none';
+    document.getElementById('modal').classList.add('active');
+}
+
+function closeModal() {
+    document.getElementById('modal').classList.remove('active');
+}
+
+document.getElementById('fph').onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const statusEl = document.getElementById('upload-status');
+    const prevEl = document.getElementById('prev');
+    
+    statusEl.style.display = 'block';
+    statusEl.textContent = '⏳ Processing...';
+    
+    try {
+        const compressed = await compressImage(file, 600, 600, 0.92);
+        currentPhoto = compressed;
+        
+        const sizeKB = Math.round((compressed.length * 3 / 4) / 1024);
+        statusEl.textContent = '✅ ~' + sizeKB + 'KB!';
+        prevEl.innerHTML = '<img src="' + compressed + '" style="max-width:200px;margin-top:10px;border-radius:12px;">';
+    } catch (error) {
+        statusEl.textContent = '❌ Failed';
+        currentPhoto = null;
+    }
+};
+
+function compressImage(file, maxW, maxH, q) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let w = img.width, h = img.height;
+                if (w > h) {
+                    if (w > maxW) { h *= maxW / w; w = maxW; }
+                } else {
+                    if (h > maxH) { w *= maxH / h; h = maxH; }
+                }
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.drawImage(img, 0, 0, w, h);
+                resolve(canvas.toDataURL('image/jpeg', q));
+            };
+            img.onerror = reject;
+            img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+async function save() {
+    const a = {
+        group: document.getElementById('fg').value,
+        FirstName: document.getElementById('ff').value.trim(),
+        LastName: document.getElementById('fl').value.trim(),
+        PassportNo: document.getElementById('fp').value.trim(),
+        DateOfBirth: document.getElementById('fd').value,
+        PlaceOfBirth: document.getElementById('fb').value,
+        IssuePlace: document.getElementById('fi').value,
+        photo: currentPhoto
+    };
+    
+    if (!a.FirstName || !a.LastName || !a.PassportNo) {
+        toast('Fill required!', 'error');
+        return;
+    }
+    
+    try {
+        document.getElementById('sync-text').textContent = 'Saving...';
+        
+        const latest = await fetch(API + '/api/applicants');
+        const latestData = await latest.json();
+        
+        apps = latestData.applicants || [];
+        serverVersion = latestData.version || 0;
+        
+        const exists = apps.find((ap, i) => ap.PassportNo === a.PassportNo && i !== editIdx);
+        if (exists) {
+            toast('⚠️ Passport exists!', 'warning');
+            document.getElementById('sync-text').textContent = 'Ready';
+            return;
         }
-
-        function handleEnter(e, next) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const n = document.getElementById(next);
-                if (n) n.focus();
-                else save();
-            }
+        
+        if (editIdx >= 0) {
+            apps[editIdx] = a;
+        } else {
+            apps.push(a);
         }
+        
+        if (a.group && !groups.includes(a.group)) groups.push(a.group);
+        
+        await sync();
+        closeModal();
+        toast('✅ Saved!', 'success');
+        document.getElementById('sync-text').textContent = 'Ready';
+    } catch (e) {
+        toast('❌ Failed!', 'error');
+        document.getElementById('sync-text').textContent = 'Ready';
+        console.error(e);
+    }
+}
 
-        async function loadData() {
+async function del(i) {
+    if (!confirm('Delete?')) return;
+    apps.splice(i, 1);
+    await sync();
+    toast('Deleted', 'success');
+}
+
+async function deleteAll() {
+    if (!confirm('Delete ALL?')) return;
+    apps = []; groups = [];
+    await sync();
+    toast('All deleted', 'success');
+}
+
+async function deleteGroup(g) {
+    const cnt = apps.filter(a => a.group === g).length;
+    if (!confirm('Delete "' + g + '" (' + cnt + ')?')) return;
+    groups = groups.filter(gr => gr !== g);
+    apps = apps.filter(a => a.group !== g);
+    if (filter === g) filter = 'all';
+    await sync();
+    toast('Deleted', 'success');
+}
+
+function showAddGroupModal() {
+    const name = prompt('Group name:');
+    if (!name || !name.trim()) return;
+    const g = name.trim();
+    if (groups.includes(g)) { toast('Exists!', 'error'); return; }
+    groups.push(g);
+    sync();
+    filter = g;
+    toast('Created!', 'success');
+}
+
+async function sync() {
+    try {
+        const r = await fetch(API + '/api/applicants/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ applicants: apps, groups, clientVersion: serverVersion })
+        });
+        const d = await r.json();
+        
+        if (d.merged) {
+            toast('⚠️ Data merged!', 'warning');
+        }
+        
+        apps = d.data.applicants;
+        groups = d.data.groups;
+        serverVersion = d.data.version;
+        updateUI();
+    } catch (e) {
+        toast('Sync failed!', 'error');
+        console.error(e);
+    }
+}
+
+async function syncNow() {
+    await loadData();
+    toast('Synced!', 'success');
+}
+
+function exportData() {
+    const s = JSON.stringify({ applicants: apps, groups }, null, 2);
+    const b = new Blob([s], { type: 'application/json' });
+    const u = URL.createObjectURL(b);
+    const l = document.createElement('a');
+    l.href = u;
+    l.download = 'bls-' + new Date().toISOString().split('T')[0] + '.json';
+    l.click();
+    URL.revokeObjectURL(u);
+    toast('Exported!', 'success');
+}
+
+function importData() {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = 'application/json';
+    inp.onchange = async e => {
+        const f = e.target.files[0];
+        if (!f) return;
+        const r = new FileReader();
+        r.onload = async ev => {
             try {
-                const r = await fetch(API + '/api/applicants');
-                const d = await r.json();
-                apps = d.applicants || [];
-                groups = d.groups || [];
-                serverVersion = d.version || 0;
-                updateUI();
-            } catch (e) { 
-                console.error(e);
-                toast('Load failed', 'error');
-            }
-        }
-
-        function updateUI() {
-            document.getElementById('total-applicants').textContent = apps.length;
-            document.getElementById('total-groups').textContent = groups.length;
-            document.getElementById('with-photos').textContent = apps.filter(a => a.photo).length;
-            
-            const fg = document.getElementById('fg');
-            fg.innerHTML = '<option value="">No Group</option>';
-            groups.forEach(g => fg.innerHTML += \`<option value="\${g}">\${g}</option>\`);
-            
-            const gf = document.getElementById('groups-filter');
-            gf.innerHTML = '';
-            const all = document.createElement('div');
-            all.className = 'group-badge' + (filter === 'all' ? ' active' : '');
-            all.textContent = \`All (\${apps.length})\`;
-            all.onclick = () => { filter = 'all'; updateUI(); };
-            gf.appendChild(all);
-            
-            groups.forEach(g => {
-                const cnt = apps.filter(a => a.group === g).length;
-                const badge = document.createElement('div');
-                badge.className = 'group-badge' + (filter === g ? ' active' : '');
-                badge.innerHTML = \`\${g} (\${cnt}) <span class="group-delete" onclick="event.stopPropagation(); deleteGroup('\${g}')">×</span>\`;
-                badge.onclick = () => { filter = g; updateUI(); };
-                gf.appendChild(badge);
-            });
-            
-            filterApplicants();
-        }
-
-        function filterApplicants() {
-            const q = document.getElementById('search').value.toLowerCase();
-            let filtered = apps.filter(a => {
-                if (filter !== 'all' && a.group !== filter) return false;
-                if (!q) return true;
-                return (a.FirstName || '').toLowerCase().includes(q) ||
-                       (a.LastName || '').toLowerCase().includes(q) ||
-                       (a.PassportNo || '').toLowerCase().includes(q);
-            });
-            
-            const tb = document.getElementById('tbody');
-            if (!filtered.length) {
-                tb.innerHTML = '<tr><td colspan="7"><div class="empty-state">No applicants</div></td></tr>';
-                return;
-            }
-            
-            tb.innerHTML = filtered.map(a => {
-                const idx = apps.indexOf(a);
-                return \`<tr>
-                    <td>\${a.photo ? \`<img class="photo-thumb" src="\${a.photo}">\` : '<div class="no-photo">👤</div>'}</td>
-                    <td><strong>\${a.FirstName || ''} \${a.LastName || ''}</strong></td>
-                    <td>\${a.PassportNo || ''}</td>
-                    <td>\${a.DateOfBirth || '-'}</td>
-                    <td>\${a.PlaceOfBirth || '-'}</td>
-                    <td>\${a.group || '-'}</td>
-                    <td class="actions">
-                        <button class="icon-btn" onclick="edit(\${idx})">✏️</button>
-                        <button class="icon-btn" onclick="del(\${idx})">🗑️</button>
-                    </td>
-                </tr>\`;
-            }).join('');
-        }
-
-        function showAddModal() {
-            editIdx = -1;
-            currentPhoto = null;
-            document.getElementById('modal-title').textContent = 'Add Applicant';
-            document.getElementById('fg').value = filter === 'all' ? '' : filter;
-            ['ff','fl','fp','fd','fb','fi','fph'].forEach(id => document.getElementById(id).value = '');
-            document.getElementById('prev').innerHTML = '';
-            document.getElementById('upload-status').style.display = 'none';
-            document.getElementById('modal').classList.add('active');
-            setTimeout(() => document.getElementById('fg').focus(), 100);
-        }
-
-        function edit(i) {
-            editIdx = i;
-            currentPhoto = apps[i].photo;
-            const a = apps[i];
-            document.getElementById('modal-title').textContent = 'Edit';
-            document.getElementById('fg').value = a.group || '';
-            document.getElementById('ff').value = a.FirstName || '';
-            document.getElementById('fl').value = a.LastName || '';
-            document.getElementById('fp').value = a.PassportNo || '';
-            document.getElementById('fd').value = a.DateOfBirth || '';
-            document.getElementById('fb').value = a.PlaceOfBirth || '';
-            document.getElementById('fi').value = a.IssuePlace || '';
-            document.getElementById('fph').value = '';
-            document.getElementById('prev').innerHTML = a.photo ? \`<img src="\${a.photo}" style="max-width:200px;margin-top:10px;border-radius:12px;">\` : '';
-            document.getElementById('upload-status').style.display = 'none';
-            document.getElementById('modal').classList.add('active');
-        }
-
-        function closeModal() {
-            document.getElementById('modal').classList.remove('active');
-        }
-
-        document.getElementById('fph').onchange = async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            
-            const statusEl = document.getElementById('upload-status');
-            const prevEl = document.getElementById('prev');
-            
-            statusEl.style.display = 'block';
-            statusEl.textContent = '⏳ Processing...';
-            
-            try {
-                const compressed = await compressImage(file, 600, 600, 0.92);
-                currentPhoto = compressed;
-                
-                const sizeKB = Math.round((compressed.length * 3 / 4) / 1024);
-                statusEl.textContent = \`✅ ~\${sizeKB}KB!\`;
-                prevEl.innerHTML = \`<img src="\${compressed}" style="max-width:200px;margin-top:10px;border-radius:12px;">\`;
-            } catch (error) {
-                statusEl.textContent = '❌ Failed';
-                currentPhoto = null;
+                const d = JSON.parse(ev.target.result);
+                if (!d.applicants) throw new Error('Invalid');
+                const existingPassports = new Set(apps.map(a => a.PassportNo));
+                const newApps = d.applicants.filter(a => !existingPassports.has(a.PassportNo));
+                apps.push(...newApps);
+                if (d.groups) {
+                    d.groups.forEach(g => { if (!groups.includes(g)) groups.push(g); });
+                }
+                await sync();
+                toast('Imported ' + newApps.length + '!', 'success');
+            } catch (e) {
+                toast('Import failed!', 'error');
             }
         };
+        r.readAsText(f);
+    };
+    inp.click();
+}
 
-        function compressImage(file, maxW, maxH, q) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        let w = img.width, h = img.height;
-                        if (w > h) {
-                            if (w > maxW) { h *= maxW / w; w = maxW; }
-                        } else {
-                            if (h > maxH) { w *= maxH / h; h = maxH; }
-                        }
-                        canvas.width = w;
-                        canvas.height = h;
-                        const ctx = canvas.getContext('2d');
-                        ctx.imageSmoothingEnabled = true;
-                        ctx.imageSmoothingQuality = 'high';
-                        ctx.drawImage(img, 0, 0, w, h);
-                        resolve(canvas.toDataURL('image/jpeg', q));
-                    };
-                    img.onerror = reject;
-                    img.src = e.target.result;
-                };
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
-            });
-        }
+function toast(msg, type) {
+    type = type || 'success';
+    const t = document.createElement('div');
+    t.className = 'toast ' + type;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+}
 
-        async function save() {
-            const a = {
-                group: document.getElementById('fg').value,
-                FirstName: document.getElementById('ff').value.trim(),
-                LastName: document.getElementById('fl').value.trim(),
-                PassportNo: document.getElementById('fp').value.trim(),
-                DateOfBirth: document.getElementById('fd').value,
-                PlaceOfBirth: document.getElementById('fb').value,
-                IssuePlace: document.getElementById('fi').value,
-                photo: currentPhoto
-            };
-            
-            if (!a.FirstName || !a.LastName || !a.PassportNo) {
-                toast('Fill required!', 'error');
-                return;
-            }
-            
-            // CRITICAL FIX: Fetch latest data first
-            try {
-                document.getElementById('sync-text').textContent = 'Saving...';
-                
-                const latest = await fetch(API + '/api/applicants');
-                const latestData = await latest.json();
-                
-                // Update our local copy with latest
-                apps = latestData.applicants || [];
-                serverVersion = latestData.version || 0;
-                
-                // Check duplicate
-                const exists = apps.find(ap => ap.PassportNo === a.PassportNo && apps.indexOf(ap) !== editIdx);
-                if (exists) {
-                    toast('⚠️ Passport exists!', 'warning');
-                    document.getElementById('sync-text').textContent = 'Ready';
-                    return;
-                }
-                
-                // Now add/update
-                if (editIdx >= 0) {
-                    apps[editIdx] = a;
-                } else {
-                    apps.push(a);
-                }
-                
-                if (a.group && !groups.includes(a.group)) groups.push(a.group);
-                
-                await sync();
-                closeModal();
-                toast('✅ Saved!', 'success');
-                document.getElementById('sync-text').textContent = 'Ready';
-            } catch (e) {
-                toast('❌ Failed!', 'error');
-                document.getElementById('sync-text').textContent = 'Ready';
-                console.error(e);
-            }
-        }
+document.addEventListener('DOMContentLoaded', loadData);
 
-        async function del(i) {
-            if (!confirm('Delete?')) return;
-            apps.splice(i, 1);
-            await sync();
-            toast('Deleted', 'success');
-        }
-
-        async function deleteAll() {
-            if (!confirm('Delete ALL?')) return;
-            apps = []; groups = [];
-            await sync();
-            toast('All deleted', 'success');
-        }
-
-        async function deleteGroup(g) {
-            const cnt = apps.filter(a => a.group === g).length;
-            if (!confirm(\`Delete "\${g}" (\${cnt})?\`)) return;
-            groups = groups.filter(gr => gr !== g);
-            apps = apps.filter(a => a.group !== g);
-            if (filter === g) filter = 'all';
-            await sync();
-            toast('Deleted', 'success');
-        }
-
-        function showAddGroupModal() {
-            const name = prompt('Group name:');
-            if (!name || !name.trim()) return;
-            const g = name.trim();
-            if (groups.includes(g)) { toast('Exists!', 'error'); return; }
-            groups.push(g);
-            sync();
-            filter = g;
-            toast('Created!', 'success');
-        }
-
-        async function sync() {
-            try {
-                const r = await fetch(API + '/api/applicants/sync', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ applicants: apps, groups, clientVersion: serverVersion })
-                });
-                const d = await r.json();
-                
-                if (d.merged) {
-                    toast('⚠️ Data merged!', 'warning');
-                }
-                
-                apps = d.data.applicants;
-                groups = d.data.groups;
-                serverVersion = d.data.version;
-                updateUI();
-            } catch (e) {
-                toast('Sync failed!', 'error');
-                console.error(e);
-            }
-        }
-
-        async function syncNow() {
-            await loadData();
-            toast('Synced!', 'success');
-        }
-
-        function exportData() {
-            const s = JSON.stringify({ applicants: apps, groups }, null, 2);
-            const b = new Blob([s], { type: 'application/json' });
-            const u = URL.createObjectURL(b);
-            const l = document.createElement('a');
-            l.href = u;
-            l.download = \`bls-\${new Date().toISOString().split('T')[0]}.json\`;
-            l.click();
-            URL.revokeObjectURL(u);
-            toast('Exported!', 'success');
-        }
-
-        function importData() {
-            const inp = document.createElement('input');
-            inp.type = 'file';
-            inp.accept = 'application/json';
-            inp.onchange = async e => {
-                const f = e.target.files[0];
-                if (!f) return;
-                const r = new FileReader();
-                r.onload = async ev => {
-                    try {
-                        const d = JSON.parse(ev.target.result);
-                        if (!d.applicants) throw new Error('Invalid');
-                        const existingPassports = new Set(apps.map(a => a.PassportNo));
-                        const newApps = d.applicants.filter(a => !existingPassports.has(a.PassportNo));
-                        apps.push(...newApps);
-                        if (d.groups) {
-                            d.groups.forEach(g => { if (!groups.includes(g)) groups.push(g); });
-                        }
-                        await sync();
-                        toast(\`Imported \${newApps.length}!\`, 'success');
-                    } catch (e) {
-                        toast('Import failed!', 'error');
-                    }
-                };
-                r.readAsText(f);
-            };
-            inp.click();
-        }
-
-        function toast(msg, type = 'success') {
-            const t = document.createElement('div');
-            t.className = \`toast \${type}\`;
-            t.textContent = msg;
-            document.body.appendChild(t);
-            setTimeout(() => t.remove(), 3000);
-        }
-
-        document.addEventListener('DOMContentLoaded', loadData);
-        
-        // Auto-refresh every 30s
-        setInterval(async () => {
-            try {
-                await loadData();
-                console.log('Auto-refreshed');
-            } catch(e) {}
-        }, 30000);
-    </script>
-</body>
-</html>`);
-});
+setInterval(async () => {
+    try {
+        await loadData();
+        console.log('Auto-refreshed');
+    } catch(e) {}
+}, 30000);
+`;
+}
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', applicants: sharedData.applicants.length, groups: sharedData.groups.length, version: sharedData.version });
@@ -842,6 +872,6 @@ app.get('/api/broadcast', (req, res) => {
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(\`🚀 Server on port \${PORT}\`);
+  console.log('🚀 Server on port ' + PORT);
   console.log('🔒 Multi-user safe | 📸 ~100KB photos | ⌨️ ENTER navigation');
 });
