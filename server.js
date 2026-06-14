@@ -375,12 +375,24 @@ app.get('/', (req, res) => {
                 </div>
                 <div class="form-group">
                     <label>📍 Issue Place</label>
-                    <select id="fi" onkeypress="handleEnter(event, 'fph')">
+                    <select id="fi" onkeypress="handleEnter(event, 'fa1')">
                         <option value="">Select...</option>
                         <option>CASABLANCA</option><option>NADOR</option><option>RABAT</option>
                         <option>TETOUAN</option><option>AGADIR</option><option>TANGER</option>
                         <option>FES</option><option>MARRAKECH</option><option>MEKNES</option><option>OUJDA</option>
                     </select>
+                </div>
+                <div class="form-group">
+                    <label>🏠 Home Address Line1</label>
+                    <input type="text" id="fa1" placeholder="Enter home address" onkeypress="handleEnter(event, 'fc')">
+                </div>
+                <div class="form-group">
+                    <label>🏙️ City</label>
+                    <input type="text" id="fc" placeholder="Enter city" onkeypress="handleEnter(event, 'fpc')">
+                </div>
+                <div class="form-group">
+                    <label>📮 Postal Code</label>
+                    <input type="text" id="fpc" placeholder="Enter postal code" onkeypress="handleEnter(event, 'fph')">
                 </div>
                 <div class="form-group">
                     <label>📸 Photo (High Quality ~100KB)</label>
@@ -489,7 +501,7 @@ app.get('/', (req, res) => {
                     <td><strong>\${a.FirstName || ''} \${a.LastName || ''}</strong></td>
                     <td>\${a.PassportNo || ''}</td>
                     <td>\${a.DateOfBirth || '-'}</td>
-                    <td>\${a.PlaceOfBirth || '-'}</td>
+                    <td>\${a.PlaceOfBirth || '-'}\${(a.City || a.PostalCode) ? \`<br><small style="opacity:.65">🏠 \${[a.City, a.PostalCode].filter(Boolean).join(', ')}</small>\` : ''}</td>
                     <td>\${a.group ? '<span class="group-badge">' + a.group + '</span>' : '-'}</td>
                     <td class="actions">
                         <button class="icon-btn" onclick="edit(\${idx})">✏️ Edit</button>
@@ -505,7 +517,7 @@ app.get('/', (req, res) => {
             currentPhotoBase64 = null;
             document.getElementById('modal-title').textContent = 'Add New Applicant';
             document.getElementById('fg').value = filter === 'all' ? '' : filter;
-            ['ff','fl','fp','fd','fb','fi','fph'].forEach(id => document.getElementById(id).value = '');
+            ['ff','fl','fp','fd','fb','fi','fa1','fc','fpc','fph'].forEach(id => document.getElementById(id).value = '');
             document.getElementById('prev').innerHTML = '';
             document.getElementById('upload-status').style.display = 'none';
             document.getElementById('save-btn').disabled = false;
@@ -526,6 +538,9 @@ app.get('/', (req, res) => {
             document.getElementById('fd').value = a.DateOfBirth || '';
             document.getElementById('fb').value = a.PlaceOfBirth || '';
             document.getElementById('fi').value = a.IssuePlace || '';
+            document.getElementById('fa1').value = a.HomeAddressLine1 || '';
+            document.getElementById('fc').value = a.City || '';
+            document.getElementById('fpc').value = a.PostalCode || '';
             document.getElementById('fph').value = '';
             document.getElementById('prev').innerHTML = a.photo
                 ? \`<img src="\${a.photo}" style="max-width:200px;margin-top:15px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);">\`
@@ -630,6 +645,9 @@ app.get('/', (req, res) => {
                 DateOfBirth: document.getElementById('fd').value,
                 PlaceOfBirth:document.getElementById('fb').value,
                 IssuePlace:  document.getElementById('fi').value,
+                HomeAddressLine1: document.getElementById('fa1').value.trim(),
+                City:        document.getElementById('fc').value.trim(),
+                PostalCode:  document.getElementById('fpc').value.trim(),
                 photo:       currentPhotoBase64,
                 _updatedAt:  Date.now()   // FIX: timestamp for conflict resolution
             };
