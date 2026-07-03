@@ -9,6 +9,7 @@ app.use(express.json({ limit: '50mb' }));
 let sharedData = {
   applicants: [],
   groups: [],
+  cityPostals: [],   // NEW: [{ city: 'Casablanca', postalCode: '20000' }, ...]
   lastModified: new Date().toISOString(),
   forceSyncTimestamp: 0
 };
@@ -313,6 +314,7 @@ app.get('/', (req, res) => {
                 <input type="text" class="search-box" id="search" placeholder="🔍 Search by name, passport..." oninput="filterApplicants()">
                 <button class="btn btn-success" onclick="showAddModal()">➕ Add Applicant</button>
                 <button class="btn btn-primary" onclick="showAddGroupModal()">📁 New Group</button>
+                <button class="btn btn-primary" onclick="showCityPostalsModal()">🏙️ City Postals</button>
                 <button class="btn btn-primary" onclick="importData()">📤 Import JSON</button>
                 <button class="btn btn-warning" onclick="exportData()">💾 Export JSON</button>
                 <button class="btn btn-danger" onclick="deleteAll()">🗑️ Delete All</button>
@@ -736,6 +738,114 @@ app.get('/', (req, res) => {
             toast('Group created!', 'success');
         }
 
+        // ─── City ↔ Postal Code manager ─────────────────────────────
+        async function showCityPostalsModal() {
+            let r;
+            try {
+                r = await fetch(API + '/api/city-postals');
+                if (!r.ok) throw new Error();
+            } catch (e) { toast('Failed to load city postals', 'error'); return; }
+            const { cityPostals } = await r.json();
+
+            // Build a lightweight modal using existing #modal container
+            const m = document.getElementById('modal');
+            const c = document.querySelector('#modal .modal-content');
+            c.innerHTML = \`
+                <h2 id="modal-title">🏙️ City → Postal Code</h2>
+                <p style="opacity:.8;font-size:13px;margin-bottom:12px">
+                    Extensions will use this table to auto-fill the Postal Code
+                    field when they detect a matching City.
+                </p>
+                <div style="display:flex;gap:8px;margin-bottom:12px">
+                    <input id="cp-city"   placeholder="City (e.g. Casablanca)" style="flex:2;padding:8px;border:1px solid #ccc;border-radius:6px;color:#222">
+                    <input id="cp-postal" placeholder="Postal (e.g. 20000)"    style="flex:1;padding:8px;border:1px solid #ccc;border-radius:6px;color:#222">
+                    <button class="btn btn-success" onclick="upsertCityPostal()">Save</button>
+                </div>
+                <div id="cp-list" style="max-height:400px;overflow:auto"></div>
+                <div style="text-align:right;margin-top:12px">
+                    <button class="btn btn-primary" onclick="closeModal()">Close</button>
+                </div>
+            \`;
+            renderCityPostals(cityPostals);
+            m.style.display = 'flex';
+        }
+
+        function renderCityPostals(list) {
+            const el = document.getElementById('cp-list');
+            if (!el) return;
+            if (!list.length) {
+                el.innerHTML = '<div style="text-align:center;padding:24px;opacity:.6">No entries yet — add one above ↑</div>';
+                return;
+            }
+            el.innerHTML = \`
+                <table style="width:100%;border-collapse:collapse">
+                    <thead>
+                        <tr style="border-bottom:1px solid rgba(255,255,255,.15)">
+                            <th style="padding:6px 8px;text-align:left">City</th>
+                            <th style="padding:6px 8px;text-align:left">Postal</th>
+                            <th style="padding:6px 8px;text-align:right">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        \${list.map(row => \`
+                            <tr style="border-bottom:1px solid rgba(255,255,255,.05)">
+                                <td style="padding:6px 8px">\${escapeHtml(row.city)}</td>
+                                <td style="padding:6px 8px;font-family:monospace">\${escapeHtml(row.postalCode)}</td>
+                                <td style="padding:6px 8px;text-align:right">
+                                    <button class="btn btn-danger" style="padding:4px 8px;font-size:11px"
+                                        onclick="deleteCityPostal('\${encodeURIComponent(row.city).replace(/'/g,'')}')">🗑️</button>
+                                </td>
+                            </tr>
+                        \`).join('')}
+                    </tbody>
+                </table>
+            \`;
+        }
+
+        async function upsertCityPostal() {
+            const city   = document.getElementById('cp-city').value.trim();
+            const postal = document.getElementById('cp-postal').value.trim();
+            if (!city || !postal) { toast('City and Postal required', 'error'); return; }
+            try {
+                const r = await fetch(API + '/api/city-postals', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'upsert', city, postalCode: postal })
+                });
+                const d = await r.json();
+                if (!d.success) throw new Error(d.error || 'Failed');
+                renderCityPostals(d.cityPostals);
+                document.getElementById('cp-city').value = '';
+                document.getElementById('cp-postal').value = '';
+                document.getElementById('cp-city').focus();
+                await fetch(API + '/api/force-sync', { method: 'POST' }).catch(() => {});
+                toast('Saved', 'success');
+            } catch (e) { toast(e.message, 'error'); }
+        }
+
+        async function deleteCityPostal(cityEncoded) {
+            const city = decodeURIComponent(cityEncoded);
+            if (!confirm('Delete "' + city + '"?')) return;
+            try {
+                const r = await fetch(API + '/api/city-postals', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'delete', city })
+                });
+                const d = await r.json();
+                if (!d.success) throw new Error(d.error || 'Failed');
+                renderCityPostals(d.cityPostals);
+                await fetch(API + '/api/force-sync', { method: 'POST' }).catch(() => {});
+                toast('Deleted', 'success');
+            } catch (e) { toast(e.message, 'error'); }
+        }
+
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, c => ({
+                '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+            })[c]);
+        }
+
         // sync() is now only used for add/edit and group creation (server merges, never overwrites)
         async function sync() {
             const r = await fetch(API + '/api/applicants/sync', {
@@ -826,6 +936,43 @@ app.get('/', (req, res) => {
 </html>`);
 });
 
+// ─── City ↔ Postal Code lookup table ──────────────────────────────────
+// Maintained on the server so all extensions share the same list.
+// The extension uses this to auto-fill PostalCode when City is set but
+// the applicant record has no explicit PostalCode.
+
+app.get('/api/city-postals', (req, res) => {
+  res.json({ success: true, cityPostals: sharedData.cityPostals || [] });
+});
+
+// Body: { action: 'upsert' | 'delete', city: 'Casablanca', postalCode: '20000' }
+app.post('/api/city-postals', (req, res) => {
+  const { action, city, postalCode } = req.body || {};
+  if (!city || typeof city !== 'string') {
+    return res.status(400).json({ success: false, error: 'city required' });
+  }
+  const norm = city.trim().toLowerCase();
+  sharedData.cityPostals = sharedData.cityPostals || [];
+
+  if (action === 'delete') {
+    sharedData.cityPostals = sharedData.cityPostals.filter(
+      c => c.city.trim().toLowerCase() !== norm
+    );
+  } else {
+    if (!postalCode) return res.status(400).json({ success: false, error: 'postalCode required for upsert' });
+    // Remove any existing entry for the same city (case-insensitive), then add the new one
+    sharedData.cityPostals = sharedData.cityPostals.filter(
+      c => c.city.trim().toLowerCase() !== norm
+    );
+    sharedData.cityPostals.push({ city: city.trim(), postalCode: String(postalCode).trim() });
+    // Keep sorted for stable output
+    sharedData.cityPostals.sort((a, b) => a.city.localeCompare(b.city));
+  }
+
+  sharedData.lastModified = new Date().toISOString();
+  res.json({ success: true, cityPostals: sharedData.cityPostals });
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', applicants: sharedData.applicants.length, groups: sharedData.groups.length });
 });
@@ -833,6 +980,20 @@ app.get('/api/health', (req, res) => {
 // Returns full shared data including forceSyncTimestamp (used by extensions)
 app.get('/api/applicants', (req, res) => {
   res.json(sharedData);
+});
+
+// FIX (bandwidth reduction): tiny endpoint for force-sync polling.
+// Extensions poll this every 2s just to check if the dashboard triggered
+// a force-sync. Response is ~60 bytes vs several KB/MB for /api/applicants.
+// Also returns lastModified so clients know when the actual data changed —
+// they only re-fetch the full /api/applicants when either timestamp changes.
+app.get('/api/sync-check', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    forceSyncTimestamp: sharedData.forceSyncTimestamp || 0,
+    lastModified:       sharedData.lastModified       || null,
+    applicantCount:     sharedData.applicants.length
+  });
 });
 
 // FIX: MERGE instead of overwrite - the root cause fix
