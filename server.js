@@ -242,6 +242,10 @@ app.get('/', (req, res) => {
             color-scheme: dark;
         }
         .form-group input::placeholder { color: #4c6b64; }
+        .form-group input:not(:placeholder-shown),
+        .form-group select:not([value=""]):valid {
+            border-color: rgba(255,255,255,.35) !important;
+        }
         .form-group input:-webkit-autofill,
         .form-group input:-webkit-autofill:hover,
         .form-group input:-webkit-autofill:focus {
@@ -548,7 +552,7 @@ app.get('/', (req, res) => {
 
         async function loadData() {
             try {
-                const r = await fetch(API + '/api/applicants');
+                const r = await fetch(API + '/api/applicants?all=1');
                 const d = await r.json();
                 apps = d.applicants || [];
                 groups = d.groups || [];
@@ -1008,6 +1012,17 @@ app.get('/', (req, res) => {
         document.addEventListener('DOMContentLoaded', async () => {
             await loadHiddenGroups();
             loadData();
+            // Highlight filled selects with white border
+            document.addEventListener('change', e => {
+                if (e.target.tagName === 'SELECT' && e.target.closest('.form-group')) {
+                    e.target.style.borderColor = e.target.value ? 'rgba(255,255,255,.35)' : '';
+                }
+            });
+            document.addEventListener('input', e => {
+                if (e.target.tagName === 'INPUT' && e.target.closest('.form-group')) {
+                    e.target.style.borderColor = e.target.value.trim() ? 'rgba(255,255,255,.35)' : '';
+                }
+            });
         });
 
         // FIX: Auto-refresh every 10 seconds but ONLY when modal is not open
@@ -1039,7 +1054,11 @@ app.get('/api/health', (req, res) => {
 
 // Returns full shared data including forceSyncTimestamp (used by extensions)
 app.get('/api/applicants', (req, res) => {
-  // Filter out applicants belonging to hidden groups
+  // Dashboard passes ?all=1 to see everything (including hidden groups).
+  // Extensions don't pass this flag, so they get filtered data.
+  if (req.query.all === '1') {
+    return res.json(sharedData);
+  }
   const filtered = {
     ...sharedData,
     applicants: sharedData.applicants.filter(a => !a.group || !hiddenGroups.has(a.group)),
