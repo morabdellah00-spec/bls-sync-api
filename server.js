@@ -25,13 +25,13 @@ app.get('/', (req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BLS Applicant Manager Pro</title>
+    <title>Droid Applicant</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
         body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(160deg, #0b1220 0%, #0f1b2b 45%, #0c1a17 100%);
             min-height: 100vh;
             padding: 20px;
         }
@@ -39,24 +39,25 @@ app.get('/', (req, res) => {
         .container { max-width: 1600px; margin: 0 auto; }
         
         .header {
-            background: white;
+            background: #10192b;
+            border: 1px solid rgba(16,185,129,.18);
             border-radius: 16px;
             padding: 25px 35px;
             margin-bottom: 25px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.35);
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
         
-        .header-left h1 { color: #667eea; font-size: 28px; font-weight: 700; margin-bottom: 5px; }
+        .header-left h1 { font-size: 26px; font-weight: 900; letter-spacing:.5px; background: linear-gradient(135deg,#34d399,#5eead4,#a7f3d0); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-bottom: 5px; }
         .header-left small { color: #7f8c8d; font-size: 13px; }
         .header-right { display: flex; gap: 15px; align-items: center; }
         
         .sync-status {
             display: flex; align-items: center; gap: 10px;
             padding: 10px 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #10b981 0%, #0ea5a3 100%);
             border-radius: 25px; font-size: 14px; color: white; font-weight: 600;
         }
         
@@ -85,7 +86,7 @@ app.get('/', (req, res) => {
         }
         
         .stat-card {
-            background: white; padding: 25px; border-radius: 16px;
+            background: #10192b; padding: 25px; border-radius: 16px;
             box-shadow: 0 5px 20px rgba(0,0,0,0.1);
             display: flex; align-items: center; gap: 20px;
             transition: transform 0.3s, box-shadow 0.3s;
@@ -97,14 +98,14 @@ app.get('/', (req, res) => {
             width: 60px; height: 60px; border-radius: 14px;
             display: flex; align-items: center; justify-content: center;
             font-size: 28px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #10b981 0%, #0ea5a3 100%);
         }
         
         .stat-content h3 { font-size: 36px; font-weight: 700; color: #2c3e50; margin-bottom: 5px; }
         .stat-content p { font-size: 14px; color: #7f8c8d; font-weight: 500; }
         
         .card {
-            background: white; border-radius: 16px; padding: 30px;
+            background: #10192b; border-radius: 16px; padding: 30px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.15);
         }
         
@@ -117,13 +118,13 @@ app.get('/', (req, res) => {
         
         .search-box {
             flex: 1; min-width: 250px; padding: 12px 20px;
-            border: 2px solid #e8ecf1; border-radius: 12px;
-            font-size: 15px; transition: all 0.3s; background: #f8f9fa;
+            border: 2px solid rgba(255,255,255,.08); border-radius: 12px;
+            font-size: 15px; transition: all 0.3s; background: #0b1424; color: #fff;
         }
         
         .search-box:focus {
-            outline: none; border-color: #667eea; background: white;
-            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+            outline: none; border-color: #10b981; background: #10192b;
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
         }
         
         .btn {
@@ -135,7 +136,7 @@ app.get('/', (req, res) => {
         .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.2); }
         .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
         
-        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-primary { background: linear-gradient(135deg, #10b981 0%, #0ea5a3 100%); color: white; }
         .btn-success { background: linear-gradient(135deg, #27ae60 0%, #229954 100%); color: white; }
         .btn-danger  { background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; }
         .btn-warning { background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); color: white; }
@@ -144,26 +145,26 @@ app.get('/', (req, res) => {
         
         .group-badge {
             padding: 10px 20px;
-            background: #f8f9fa; border: 2px solid #e8ecf1; border-radius: 25px;
+            background: #0b1424; border: 2px solid rgba(255,255,255,.08); border-radius: 25px;
             font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s;
             display: inline-flex; align-items: center; gap: 8px;
         }
         
-        .group-badge:hover { background: #667eea; color: white; border-color: #667eea; transform: translateY(-2px); }
-        .group-badge.active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-color: transparent; }
+        .group-badge:hover { background: #10b981; color: white; border-color: #10b981; transform: translateY(-2px); }
+        .group-badge.active { background: linear-gradient(135deg, #10b981 0%, #0ea5a3 100%); color: white; border-color: transparent; }
         .group-delete { color: #e74c3c; font-weight: bold; cursor: pointer; margin-left: 5px; transition: color 0.3s; }
         .group-badge:hover .group-delete { color: white; }
         
         table { width: 100%; border-collapse: separate; border-spacing: 0 10px; }
         
         thead th {
-            background: #f8f9fa; padding: 15px; text-align: left;
+            background: #0b1424; padding: 15px; text-align: left;
             font-weight: 700; color: #2c3e50; font-size: 13px;
             text-transform: uppercase; letter-spacing: 0.5px; border: none;
         }
         
-        tbody tr { background: white; transition: all 0.3s; }
-        tbody tr:hover { background: #f8f9fa; transform: translateX(5px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        tbody tr { background: #10192b; transition: all 0.3s; }
+        tbody tr:hover { background: #0d1729; transform: translateX(5px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
         
         tbody td { padding: 15px; border-top: 1px solid #f1f3f5; border-bottom: 1px solid #f1f3f5; }
         tbody td:first-child { border-left: 1px solid #f1f3f5; border-top-left-radius: 12px; border-bottom-left-radius: 12px; }
@@ -171,7 +172,7 @@ app.get('/', (req, res) => {
         
         .photo-thumb {
             width: 50px; height: 50px; border-radius: 12px; object-fit: cover;
-            border: 3px solid #667eea; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            border: 3px solid #10b981; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
         
         .no-photo {
@@ -184,15 +185,15 @@ app.get('/', (req, res) => {
         .actions { display: flex; gap: 8px; }
         
         .icon-btn {
-            padding: 8px 14px; background: #f8f9fa; border: 1px solid #e8ecf1;
+            padding: 8px 14px; background: #0b1424; border: 1px solid rgba(255,255,255,.08);
             border-radius: 8px; cursor: pointer; transition: all 0.3s; font-size: 14px;
         }
         
-        .icon-btn:hover { background: #667eea; color: white; border-color: #667eea; transform: translateY(-2px); }
+        .icon-btn:hover { background: #10b981; color: white; border-color: #10b981; transform: translateY(-2px); }
         
         .modal {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.6); backdrop-filter: blur(5px);
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
             z-index: 1000; align-items: center; justify-content: center; animation: fadeIn 0.3s;
         }
         
@@ -200,7 +201,7 @@ app.get('/', (req, res) => {
         .modal.active { display: flex; }
         
         .modal-content {
-            background: white; border-radius: 20px; width: 100%; max-width: 700px;
+            background: #0f1b2b; border: 1px solid rgba(16,185,129,.15); border-radius: 20px; width: 100%; max-width: 700px;
             max-height: 90vh; overflow-y: auto;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3); animation: slideUp 0.3s;
         }
@@ -210,7 +211,7 @@ app.get('/', (req, res) => {
         .modal-header {
             padding: 25px 30px; border-bottom: 2px solid #f1f3f5;
             display: flex; justify-content: space-between; align-items: center;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #10b981 0%, #0ea5a3 100%);
             border-radius: 20px 20px 0 0;
         }
         
@@ -231,20 +232,20 @@ app.get('/', (req, res) => {
         
         .form-group input,
         .form-group select {
-            width: 100%; padding: 14px 18px; border: 2px solid #e8ecf1;
-            border-radius: 12px; font-size: 15px; transition: all 0.3s; background: #f8f9fa;
+            width: 100%; padding: 14px 18px; border: 2px solid rgba(255,255,255,.08);
+            border-radius: 12px; font-size: 15px; transition: all 0.3s; background: #0b1424; color: #fff;
         }
         
         .form-group input:focus,
         .form-group select:focus {
-            outline: none; border-color: #667eea; background: white;
-            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+            outline: none; border-color: #10b981; background: #10192b;
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
         }
         
         .modal-footer {
             padding: 20px 30px; border-top: 2px solid #f1f3f5;
             display: flex; gap: 12px; justify-content: flex-end;
-            background: #f8f9fa; border-radius: 0 0 20px 20px;
+            background: #0b1424; border-radius: 0 0 20px 20px;
         }
         
         .toast {
@@ -264,21 +265,24 @@ app.get('/', (req, res) => {
         
         .upload-status {
             margin-top: 12px; padding: 12px; background: #f0f4ff;
-            border-radius: 10px; font-size: 13px; color: #667eea; text-align: center; font-weight: 600;
+            border-radius: 10px; font-size: 13px; color: #10b981; text-align: center; font-weight: 600;
         }
         
         ::-webkit-scrollbar { width: 10px; }
-        ::-webkit-scrollbar-track { background: #f1f3f5; }
-        ::-webkit-scrollbar-thumb { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 5px; }
-        ::-webkit-scrollbar-thumb:hover { background: #667eea; }
+        ::-webkit-scrollbar-track { background: #0b1424; }
+        ::-webkit-scrollbar-thumb { background: linear-gradient(135deg, #10b981 0%, #0ea5a3 100%); border-radius: 5px; }
+        ::-webkit-scrollbar-thumb:hover { background: #10b981; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <div class="header-left">
-                <h1>💼 BLS Applicant Manager Pro</h1>
-                <small>📸 High Quality Photos (~100KB) | ⌨️ Press ENTER to navigate | 🔄 Auto-refresh every 10s</small>
+            <div class="header-left" style="display:flex;align-items:center;gap:18px">
+                <div style="width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,#10b981,#0ea5a3,#0f766e);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:20px;letter-spacing:-1px;color:#06251d;box-shadow:0 0 0 3px rgba(16,185,129,.18),0 8px 24px rgba(16,185,129,.35);flex-shrink:0">AM</div>
+                <div>
+                    <h1>DROID APPLICANT</h1>
+                    <small style="color:#64a89c;font-weight:600;letter-spacing:.4px">BLS Applicant Control · Spain · Morocco · Portugal</small>
+                </div>
             </div>
             <div class="header-right">
                 <!-- FIX: live badge shows auto-refresh is active -->
@@ -314,7 +318,19 @@ app.get('/', (req, res) => {
                 <button class="btn btn-success" onclick="showAddModal()">➕ Add Applicant</button>
                 <button class="btn btn-primary" onclick="showAddGroupModal()">📁 New Group</button>
                 <button class="btn btn-primary" onclick="importData()">📤 Import JSON</button>
-                <button class="btn btn-warning" onclick="exportData()">💾 Export JSON</button>
+                <div style="position:relative;display:inline-block">
+                    <button class="btn btn-warning" onclick="toggleExportDD()">💾 Export ▾</button>
+                    <div id="export-dd" style="display:none;position:absolute;top:100%;left:0;margin-top:6px;background:#0f1b2b;border:1px solid rgba(16,185,129,.2);border-radius:10px;overflow:hidden;z-index:100;min-width:170px;box-shadow:0 8px 32px rgba(0,0,0,.5)">
+                        <div style="padding:8px 14px;font-size:10px;color:#6b8f85;font-weight:700;letter-spacing:.6px;text-transform:uppercase;border-bottom:1px solid rgba(255,255,255,.06)">Export by city</div>
+                        <div onclick="exportByCity('ALL')" style="padding:8px 14px;color:#e5f7f1;cursor:pointer;font-size:13px;font-weight:600" onmouseenter="this.style.background='rgba(16,185,129,.15)'" onmouseleave="this.style.background=''">📦 ALL</div>
+                        <div onclick="exportByCity('CASABLANCA')" style="padding:8px 14px;color:#e5f7f1;cursor:pointer;font-size:13px;font-weight:600" onmouseenter="this.style.background='rgba(16,185,129,.15)'" onmouseleave="this.style.background=''">🏙️ CASABLANCA</div>
+                        <div onclick="exportByCity('RABAT')" style="padding:8px 14px;color:#e5f7f1;cursor:pointer;font-size:13px;font-weight:600" onmouseenter="this.style.background='rgba(16,185,129,.15)'" onmouseleave="this.style.background=''">🏙️ RABAT</div>
+                        <div onclick="exportByCity('NADOR')" style="padding:8px 14px;color:#e5f7f1;cursor:pointer;font-size:13px;font-weight:600" onmouseenter="this.style.background='rgba(16,185,129,.15)'" onmouseleave="this.style.background=''">🏙️ NADOR</div>
+                        <div onclick="exportByCity('TETOUAN')" style="padding:8px 14px;color:#e5f7f1;cursor:pointer;font-size:13px;font-weight:600" onmouseenter="this.style.background='rgba(16,185,129,.15)'" onmouseleave="this.style.background=''">🏙️ TETOUAN</div>
+                        <div onclick="exportByCity('AGADIR')" style="padding:8px 14px;color:#e5f7f1;cursor:pointer;font-size:13px;font-weight:600" onmouseenter="this.style.background='rgba(16,185,129,.15)'" onmouseleave="this.style.background=''">🏙️ AGADIR</div>
+                        <div onclick="exportByCity('TANGER')" style="padding:8px 14px;color:#e5f7f1;cursor:pointer;font-size:13px;font-weight:600" onmouseenter="this.style.background='rgba(16,185,129,.15)'" onmouseleave="this.style.background=''">🏙️ TANGIER</div>
+                    </div>
+                </div>
                 <button class="btn btn-danger" onclick="deleteAll()">🗑️ Delete All</button>
             </div>
             
@@ -548,9 +564,13 @@ app.get('/', (req, res) => {
             groups.forEach(g => {
                 const cnt = apps.filter(a => a.group === g).length;
                 const badge = document.createElement('div');
+                const isHid = hiddenGroups.has(g);
                 badge.className = 'group-badge' + (filter === g ? ' active' : '');
-                badge.innerHTML = \`\${g} (\${cnt}) <span class="group-delete" onclick="event.stopPropagation(); deleteGroup('\${g}')">×</span>\`;
+                if (isHid) badge.style.opacity = '0.5';
+                badge.innerHTML = \`\${g} (\${cnt})\${isHid?' 🚫':''} <span style="cursor:pointer;opacity:0;transition:opacity .2s;font-size:11px;margin-left:4px" class="ghide" onclick="event.stopPropagation(); toggleGroupHidden('\${g}')" title="\${isHid?'Show':'Hide from extension'}">\${isHid?'👁️':'🙈'}</span> <span class="group-delete" onclick="event.stopPropagation(); deleteGroup('\${g}')">×</span>\`;
                 badge.onclick = () => { filter = g; updateUI(); };
+                badge.onmouseenter = () => { const h = badge.querySelector('.ghide'); if(h) h.style.opacity='1'; };
+                badge.onmouseleave = () => { const h = badge.querySelector('.ghide'); if(h) h.style.opacity='0'; };
                 gf.appendChild(badge);
             });
             
@@ -703,6 +723,21 @@ app.get('/', (req, res) => {
                 return;
             }
 
+            // DOB validation — year must be 4 digits, between 1920 and now
+            const dobVal = document.getElementById('fd').value;
+            if (dobVal) {
+                const parts = dobVal.split(/[-\\/]/);
+                const year = parseInt(parts[0], 10);
+                const now = new Date().getFullYear();
+                if (isNaN(year) || year < 1920 || year > now || String(parts[0]).length !== 4) {
+                    toast('Invalid year in Date of Birth! Must be 4 digits between 1920-' + now, 'error');
+                    document.getElementById('fd').style.borderColor = '#f43f5e';
+                    document.getElementById('fd').focus();
+                    return;
+                }
+                document.getElementById('fd').style.borderColor = '';
+            }
+
             // FIX: Check for duplicate passport only on NEW applicants
             if (editIdx < 0) {
                 const duplicate = apps.find(a => a.PassportNo === passportVal);
@@ -842,16 +877,51 @@ app.get('/', (req, res) => {
             }
         }
 
-        function exportData() {
-            const s = JSON.stringify({ applicants: apps, groups }, null, 2);
+        function toggleExportDD() {
+            const dd = document.getElementById('export-dd');
+            dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+        }
+        document.addEventListener('click', e => {
+            const dd = document.getElementById('export-dd');
+            if (dd && dd.style.display === 'block' && !e.target.closest('[onclick*="toggleExportDD"]') && !e.target.closest('#export-dd')) dd.style.display = 'none';
+        });
+
+        function exportByCity(city) {
+            document.getElementById('export-dd').style.display = 'none';
+            const dateStr = new Date().toISOString().split('T')[0];
+            let filtered, filename;
+            if (city === 'ALL') {
+                filtered = { applicants: apps, groups };
+                filename = 'bls-ALL-' + dateStr + '.json';
+            } else {
+                const matchApps = apps.filter(a => (a.PlaceOfBirth || '').toUpperCase() === city.toUpperCase());
+                const matchGroups = [...new Set(matchApps.map(a => a.group).filter(Boolean))];
+                filtered = { applicants: matchApps, groups: matchGroups };
+                filename = 'bls-' + city + '-' + dateStr + '.json';
+            }
+            const s = JSON.stringify(filtered, null, 2);
             const b = new Blob([s], { type: 'application/json' });
             const u = URL.createObjectURL(b);
             const l = document.createElement('a');
             l.href = u;
-            l.download = \`bls-applicants-\${new Date().toISOString().split('T')[0]}.json\`;
+            l.download = filename;
             l.click();
             URL.revokeObjectURL(u);
-            toast('Exported successfully!', 'success');
+            toast('Exported ' + filtered.applicants.length + ' applicants (' + city + ')', 'success');
+        }
+
+        function exportData() { exportByCity('ALL'); }
+
+        // ── Group hide/show ──────────────────────────────────────────
+        let hiddenGroups = new Set();
+        try { const s = localStorage.getItem('da_hidden_groups'); if (s) hiddenGroups = new Set(JSON.parse(s)); } catch(_) {}
+        function saveHiddenGroups() { localStorage.setItem('da_hidden_groups', JSON.stringify([...hiddenGroups])); }
+        function toggleGroupHidden(g) {
+            if (hiddenGroups.has(g)) { hiddenGroups.delete(g); toast(g + ' visible', 'success'); }
+            else { hiddenGroups.add(g); toast(g + ' hidden from extension', 'success'); }
+            saveHiddenGroups();
+            renderTable();
+        }
         }
 
         function importData() {
