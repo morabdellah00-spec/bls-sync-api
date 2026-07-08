@@ -3,89 +3,111 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BLS Applicant Manager</title>
+    <title>Droid Applicant</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Roboto', -apple-system, sans-serif;
-            background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 50%, #fff3e0 100%);
+            font-family: 'Inter', 'Roboto', -apple-system, sans-serif;
+            background: linear-gradient(160deg, #0b1220 0%, #0f1b2b 45%, #0c1a17 100%);
             min-height: 100vh;
             padding: 30px;
         }
         .container { max-width: 1400px; margin: 0 auto; }
-        
+
         .header {
-            background: white;
+            background: #10192b;
+            border: 1px solid rgba(16,185,129,.18);
             border-radius: 24px;
-            padding: 35px 40px;
+            padding: 30px 40px;
             margin-bottom: 30px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 8px 32px rgba(0,0,0,.35);
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-        
-        .header h1 {
-            font-size: 32px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+
+        .brand { display: flex; align-items: center; gap: 18px; }
+
+        .brand-logo {
+            width: 58px; height: 58px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #10b981 0%, #0ea5a3 55%, #0f766e 100%);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 900; font-size: 22px; letter-spacing: -1px;
+            color: #06251d;
+            box-shadow: 0 0 0 3px rgba(16,185,129,.18), 0 8px 24px rgba(16,185,129,.35);
+            flex-shrink: 0;
+        }
+
+        .brand-text h1 {
+            font-size: 26px;
+            font-weight: 900;
+            letter-spacing: .5px;
+            background: linear-gradient(135deg, #34d399 0%, #5eead4 60%, #a7f3d0 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            font-weight: 900;
         }
-        
+
+        .brand-text p {
+            margin-top: 4px;
+            font-size: 12.5px;
+            font-weight: 600;
+            letter-spacing: .4px;
+            color: #64a89c;
+        }
+
         .sync-status {
             display: flex;
             align-items: center;
             gap: 12px;
         }
-        
+
         .sync-dot {
             width: 12px;
             height: 12px;
             border-radius: 50%;
-            background: #4CAF50;
+            background: #10b981;
             animation: pulse 2s infinite;
         }
-        
+
         .sync-dot.disconnected {
-            background: #f44336;
+            background: #f43f5e;
             animation: none;
         }
-        
+
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
         }
-        
+
         .stats {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 24px;
             margin-bottom: 30px;
         }
-        
+
         .stat-card {
-            background: white;
+            background: #10192b;
+            border: 1px solid rgba(255,255,255,.05);
             padding: 32px;
             border-radius: 24px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 8px 32px rgba(0,0,0,.3);
             position: relative;
             overflow: hidden;
         }
-        
+
         .stat-card::before {
             content: '';
             position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
+            top: 0; left: 0; right: 0;
             height: 6px;
         }
-        
-        .stat-card:nth-child(1)::before { background: linear-gradient(90deg, #2196F3, #00BCD4); }
-        .stat-card:nth-child(2)::before { background: linear-gradient(90deg, #9C27B0, #E91E63); }
-        .stat-card:nth-child(3)::before { background: linear-gradient(90deg, #FF9800, #FF5722); }
-        
+
+        .stat-card:nth-child(1)::before { background: linear-gradient(90deg, #10b981, #5eead4); }
+        .stat-card:nth-child(2)::before { background: linear-gradient(90deg, #0ea5a3, #22d3ee); }
+        .stat-card:nth-child(3)::before { background: linear-gradient(90deg, #34d399, #a7f3d0); }
+
         .stat-card .icon {
             width: 64px;
             height: 64px;
@@ -96,59 +118,59 @@
             font-size: 32px;
             margin-bottom: 20px;
         }
-        
-        .stat-card:nth-child(1) .icon { background: linear-gradient(135deg, #2196F3, #00BCD4); }
-        .stat-card:nth-child(2) .icon { background: linear-gradient(135deg, #9C27B0, #E91E63); }
-        .stat-card:nth-child(3) .icon { background: linear-gradient(135deg, #FF9800, #FF5722); }
-        
+
+        .stat-card:nth-child(1) .icon { background: linear-gradient(135deg, #10b981, #5eead4); }
+        .stat-card:nth-child(2) .icon { background: linear-gradient(135deg, #0ea5a3, #22d3ee); }
+        .stat-card:nth-child(3) .icon { background: linear-gradient(135deg, #34d399, #a7f3d0); }
+
         .stat-card h3 {
             font-size: 48px;
-            color: #212121;
+            color: #e5f7f1;
             font-weight: 900;
             margin-bottom: 8px;
         }
-        
+
         .stat-card p {
-            color: #757575;
+            color: #6b8f85;
             font-size: 16px;
             font-weight: 500;
         }
-        
         .main-card {
-            background: white;
+            background: #10192b;
+            border: 1px solid rgba(255,255,255,.05);
             border-radius: 24px;
             padding: 40px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 8px 32px rgba(0,0,0,.3);
         }
-        
+
         .section-title {
             font-size: 24px;
             font-weight: 700;
-            color: #212121;
+            color: #e5f7f1;
             margin-bottom: 24px;
         }
-        
+
         .toolbar {
             display: flex;
             gap: 12px;
             margin-bottom: 30px;
             flex-wrap: wrap;
         }
-        
+
         .search-box {
             flex: 1;
             padding: 16px 24px;
-            background: #f5f5f5;
-            border: none;
+            background: #0b1424;
+            border: 1px solid rgba(255,255,255,.08);
             border-radius: 16px;
-            color: #212121;
+            color: #e5f7f1;
             font-size: 16px;
             min-width: 200px;
         }
-        
-        .search-box:focus { outline: none; background: #eeeeee; }
-        .search-box::placeholder { color: #9e9e9e; }
-        
+
+        .search-box:focus { outline: none; background: #0d1729; border-color: #10b981; }
+        .search-box::placeholder { color: #4c6b64; }
+
         .btn {
             padding: 16px 28px;
             border: none;
@@ -160,97 +182,99 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-        
+
         .btn:hover { transform: translateY(-2px); }
-        
+
         .btn-blue {
-            background: linear-gradient(135deg, #2196F3, #00BCD4);
-            color: white;
-            box-shadow: 0 4px 16px rgba(33, 150, 243, 0.4);
+            background: linear-gradient(135deg, #0ea5a3, #22d3ee);
+            color: #04211f;
+            box-shadow: 0 4px 16px rgba(14,165,163,.35);
         }
-        
-        .btn-blue:hover { box-shadow: 0 6px 24px rgba(33, 150, 243, 0.5); }
-        
+        .btn-blue:hover { box-shadow: 0 6px 24px rgba(14,165,163,.5); }
+
         .btn-purple {
-            background: linear-gradient(135deg, #9C27B0, #E91E63);
-            color: white;
-            box-shadow: 0 4px 16px rgba(156, 39, 176, 0.4);
+            background: linear-gradient(135deg, #34d399, #10b981);
+            color: #04211f;
+            box-shadow: 0 4px 16px rgba(16,185,129,.35);
         }
-        
-        .btn-purple:hover { box-shadow: 0 6px 24px rgba(156, 39, 176, 0.5); }
-        
+        .btn-purple:hover { box-shadow: 0 6px 24px rgba(16,185,129,.5); }
+
         .btn-orange {
-            background: linear-gradient(135deg, #FF9800, #FF5722);
-            color: white;
-            box-shadow: 0 4px 16px rgba(255, 152, 0, 0.4);
+            background: linear-gradient(135deg, #a7f3d0, #6ee7b7);
+            color: #04211f;
+            box-shadow: 0 4px 16px rgba(110,231,183,.35);
         }
-        
-        .btn-orange:hover { box-shadow: 0 6px 24px rgba(255, 152, 0, 0.5); }
-        
+        .btn-orange:hover { box-shadow: 0 6px 24px rgba(110,231,183,.5); }
+
         .btn-green {
-            background: linear-gradient(135deg, #4CAF50, #8BC34A);
-            color: white;
-            box-shadow: 0 4px 16px rgba(76, 175, 80, 0.4);
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #ffffff;
+            box-shadow: 0 4px 16px rgba(16,185,129,.4);
         }
-        
-        .btn-green:hover { box-shadow: 0 6px 24px rgba(76, 175, 80, 0.5); }
-        
+        .btn-green:hover { box-shadow: 0 6px 24px rgba(16,185,129,.55); }
+
         .btn-red {
-            background: linear-gradient(135deg, #f44336, #e91e63);
+            background: linear-gradient(135deg, #f43f5e, #e11d48);
             color: white;
-            box-shadow: 0 4px 16px rgba(244, 67, 54, 0.4);
+            box-shadow: 0 4px 16px rgba(244,63,94,.35);
         }
-        
+
         .groups-filter {
             display: flex;
             gap: 12px;
             flex-wrap: wrap;
             margin-bottom: 24px;
         }
-        
+
         .group-badge {
             padding: 12px 24px;
-            background: #f5f5f5;
+            background: #0b1424;
+            border: 1px solid rgba(255,255,255,.06);
             border-radius: 16px;
             font-size: 14px;
             font-weight: 600;
+            color: #cfeee5;
             cursor: pointer;
             transition: all 0.3s;
             display: flex;
             align-items: center;
             gap: 8px;
         }
-        
+
         .group-badge:hover {
-            background: #eeeeee;
+            background: #0d1729;
             transform: translateY(-2px);
         }
-        
+
         .group-badge.active {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
+            background: linear-gradient(135deg, #10b981, #0ea5a3);
+            color: #04211f;
+            border-color: transparent;
         }
-        
+
         .group-delete {
             margin-left: 8px;
-            color: #f44336;
+            color: #f43f5e;
             font-weight: bold;
             cursor: pointer;
             opacity: 0.7;
         }
-        
+
         .group-delete:hover {
             opacity: 1;
             transform: scale(1.2);
         }
-        
+
+        .group-badge:hover .group-hide-btn {
+            opacity: 1 !important;
+        }
         .applicant-cards {
             display: grid;
             gap: 20px;
         }
-        
+
         .applicant-card {
-            background: #fafafa;
+            background: #0b1424;
             border-radius: 20px;
             padding: 24px;
             display: flex;
@@ -259,49 +283,49 @@
             transition: all 0.3s;
             border: 2px solid transparent;
         }
-        
+
         .applicant-card:hover {
-            background: white;
-            border-color: #667eea;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+            background: #0d1729;
+            border-color: #10b981;
+            box-shadow: 0 8px 24px rgba(0,0,0,.35);
             transform: translateX(8px);
         }
-        
+
         .photo-thumb {
             width: 72px;
             height: 72px;
             border-radius: 50%;
             object-fit: cover;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 16px rgba(0,0,0,.3);
             flex-shrink: 0;
         }
-        
+
         .applicant-info {
             flex: 1;
             min-width: 0;
         }
-        
+
         .applicant-name {
             font-size: 20px;
             font-weight: 700;
-            color: #212121;
+            color: #e5f7f1;
             margin-bottom: 6px;
         }
-        
+
         .applicant-details {
             display: flex;
             gap: 24px;
-            color: #757575;
+            color: #6b8f85;
             font-size: 14px;
             flex-wrap: wrap;
         }
-        
+
         .detail-item {
             display: flex;
             align-items: center;
             gap: 6px;
         }
-        
+
         .badge {
             display: inline-block;
             padding: 8px 18px;
@@ -312,194 +336,246 @@
             letter-spacing: 0.5px;
             flex-shrink: 0;
         }
-        
+
         .badge-blue {
-            background: linear-gradient(135deg, #e3f2fd, #bbdefb);
-            color: #1976D2;
+            background: linear-gradient(135deg, rgba(16,185,129,.18), rgba(94,234,212,.18));
+            color: #5eead4;
         }
-        
+
         .actions {
             display: flex;
             gap: 8px;
             flex-shrink: 0;
         }
-        
+
         .action-btn {
             width: 44px;
             height: 44px;
             border: none;
             border-radius: 12px;
-            background: white;
-            color: #757575;
+            background: #0d1729;
+            color: #6b8f85;
             font-size: 18px;
             cursor: pointer;
             transition: all 0.3s;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 8px rgba(0,0,0,.3);
         }
-        
+
         .action-btn:hover {
             transform: scale(1.1);
-            color: #667eea;
-            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+            color: #10b981;
+            box-shadow: 0 4px 16px rgba(16,185,129,.3);
         }
-        
+
         .empty-state {
             text-align: center;
             padding: 60px 20px;
-            color: #9e9e9e;
+            color: #4c6b64;
         }
-        
+
         .empty-state h3 {
             font-size: 24px;
             margin-bottom: 8px;
         }
-        
-        /* Modal Styles */
+        /* MODAL - redesigned to match reference layout */
         .modal {
             display: none;
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(4,10,18,.7);
             z-index: 1000;
             align-items: center;
             justify-content: center;
             padding: 20px;
         }
-        
-        .modal.active { display: flex; }
-        
+
+        .modal.active {
+            display: flex;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
         .modal-content {
-            background: white;
-            border-radius: 24px;
+            background: #0f1b2b;
+            border: 1px solid rgba(16,185,129,.15);
+            border-radius: 20px;
             width: 100%;
-            max-width: 600px;
+            max-width: 760px;
             max-height: 90vh;
             overflow-y: auto;
-            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 24px 64px rgba(0,0,0,.5);
         }
-        
+
         .modal-header {
-            padding: 30px;
-            border-bottom: 2px solid #f5f5f5;
+            padding: 26px 34px;
+            background: linear-gradient(135deg, #0c2a22 0%, #0f1b2b 100%);
+            border-bottom: 3px solid #10b981;
+            border-radius: 20px 20px 0 0;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-        
-        .modal-header h2 {
-            font-size: 24px;
-            color: #212121;
-            font-weight: 700;
+
+        .modal-header-text h2 {
+            font-size: 22px;
+            color: #e5f7f1;
+            font-weight: 800;
+            letter-spacing: .3px;
         }
-        
+        .modal-header-text p {
+            margin-top: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1.4px;
+            text-transform: uppercase;
+            color: #5eead4;
+        }
+
         .close-btn {
-            background: none;
+            background: rgba(255,255,255,.06);
             border: none;
-            font-size: 28px;
-            color: #9e9e9e;
+            font-size: 20px;
+            color: #a9c7bd;
             cursor: pointer;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
             transition: all 0.3s;
         }
-        
+
         .close-btn:hover {
-            background: #f5f5f5;
-            color: #212121;
+            background: rgba(244,63,94,.15);
+            color: #f43f5e;
         }
-        
+
         .modal-body {
-            padding: 30px;
+            padding: 30px 34px;
+            display: grid;
+            grid-template-columns: 180px 1fr;
+            gap: 28px;
         }
-        
-        .form-group {
-            margin-bottom: 24px;
+
+        .modal-body-left {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
         }
-        
+
+        .photo-drop {
+            width: 100%;
+            aspect-ratio: 1;
+            border-radius: 14px;
+            background: #0b1424;
+            border: 2px dashed rgba(16,185,129,.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            color: rgba(16,185,129,.5);
+            overflow: hidden;
+            cursor: pointer;
+            position: relative;
+        }
+        .photo-drop img { width: 100%; height: 100%; object-fit: cover; }
+
+        .file-input-row {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .file-input-row input[type="file"] {
+            font-size: 11px;
+            color: #6b8f85;
+        }
+
+        .modal-body-right {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px 20px;
+            align-content: start;
+        }
+        .form-group { margin-bottom: 20px; }
+        .modal-body-right .form-group.full { grid-column: 1 / -1; }
+
         .form-group label {
             display: block;
-            margin-bottom: 10px;
-            font-weight: 600;
-            font-size: 14px;
-            color: #212121;
+            margin-bottom: 8px;
+            font-weight: 700;
+            font-size: 11px;
+            color: #6b8f85;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.8px;
         }
-        
+
         .form-group input,
         .form-group select {
             width: 100%;
-            padding: 14px 18px;
-            border: 2px solid #eeeeee;
-            border-radius: 12px;
-            font-size: 16px;
+            padding: 12px 14px;
+            background: #0b1424;
+            border: 1px solid rgba(255,255,255,.08);
+            border-radius: 10px;
+            color: #ffffff;
+            font-size: 14.5px;
             transition: all 0.3s;
         }
-        
+        .form-group select option {
+            background: #0b1424;
+            color: #ffffff;
+        }
+
         .form-group input:focus,
         .form-group select:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16,185,129,.15);
         }
-        
+
         .modal-footer {
-            padding: 20px 30px;
-            border-top: 2px solid #f5f5f5;
+            padding: 20px 34px 28px;
             display: flex;
             gap: 12px;
             justify-content: flex-end;
         }
-        
+
         .toast {
             position: fixed;
             bottom: 30px;
             right: 30px;
             padding: 20px 30px;
-            background: #212121;
-            color: white;
+            background: #0f1b2b;
+            border: 1px solid rgba(255,255,255,.08);
+            color: #e5f7f1;
             border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 8px 32px rgba(0,0,0,.4);
             z-index: 2000;
             animation: slideIn 0.3s ease;
             font-weight: 600;
         }
-        
+
         @keyframes slideIn {
-            from {
-                transform: translateX(400px);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
+            from { transform: translateX(400px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
         }
-        
-        .toast.success {
-            background: linear-gradient(135deg, #4CAF50, #8BC34A);
-        }
-        
-        .toast.error {
-            background: linear-gradient(135deg, #f44336, #e91e63);
-        }
+
+        .toast.success { background: linear-gradient(135deg, #10b981, #059669); color: #fff; }
+        .toast.error   { background: linear-gradient(135deg, #f43f5e, #e11d48); color: #fff; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <div>
-                <h1>💼 BLS APPLICANT MANAGER</h1>
+            <div class="brand">
+                <div class="brand-logo">AM</div>
+                <div class="brand-text">
+                    <h1>DROID APPLICANT</h1>
+                    <p>BLS Applicant Control · Spain · Morocco · Portugal</p>
+                </div>
             </div>
             <div class="sync-status">
                 <div class="sync-dot" id="ws-status"></div>
-                <span id="ws-text" style="color: #757575; font-weight: 600;">Connecting...</span>
+                <span id="ws-text" style="color: #9fc4b9; font-weight: 600;">Connecting...</span>
                 <button class="btn btn-blue" onclick="syncNow()">🔄 SYNC</button>
-                <button class="btn btn-purple" onclick="syncPhotosToExtensions()" title="Manually sync all applicants WITH photos to extensions">📤 SYNC WITH PHOTOS</button>
             </div>
         </div>
         
@@ -529,7 +605,19 @@
                 <button class="btn btn-green" onclick="showAddModal()">➕ ADD NEW</button>
                 <button class="btn btn-purple" onclick="showAddGroupModal()">📁 GROUPS</button>
                 <button class="btn btn-blue" onclick="importData()">📤 IMPORT</button>
-                <button class="btn btn-orange" onclick="exportData()">💾 EXPORT</button>
+                <div style="position:relative;display:inline-block">
+                    <button class="btn btn-orange" onclick="toggleExportDropdown()">💾 EXPORT ▾</button>
+                    <div id="export-dropdown" style="display:none;position:absolute;top:100%;left:0;margin-top:8px;background:#0f1b2b;border:1px solid rgba(16,185,129,.2);border-radius:12px;overflow:hidden;z-index:100;min-width:180px;box-shadow:0 8px 32px rgba(0,0,0,.5)">
+                        <div style="padding:10px 16px;font-size:11px;color:#6b8f85;font-weight:700;letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid rgba(255,255,255,.06)">Export by city</div>
+                        <div onclick="exportByCity('ALL')" style="padding:10px 16px;color:#e5f7f1;cursor:pointer;font-weight:600;font-size:13px;transition:background .2s" onmouseenter="this.style.background='rgba(16,185,129,.15)'" onmouseleave="this.style.background='transparent'">📦 ALL (everything)</div>
+                        <div onclick="exportByCity('CASABLANCA')" style="padding:10px 16px;color:#e5f7f1;cursor:pointer;font-weight:600;font-size:13px;transition:background .2s" onmouseenter="this.style.background='rgba(16,185,129,.15)'" onmouseleave="this.style.background='transparent'">🏙️ CASABLANCA</div>
+                        <div onclick="exportByCity('RABAT')" style="padding:10px 16px;color:#e5f7f1;cursor:pointer;font-weight:600;font-size:13px;transition:background .2s" onmouseenter="this.style.background='rgba(16,185,129,.15)'" onmouseleave="this.style.background='transparent'">🏙️ RABAT</div>
+                        <div onclick="exportByCity('NADOR')" style="padding:10px 16px;color:#e5f7f1;cursor:pointer;font-weight:600;font-size:13px;transition:background .2s" onmouseenter="this.style.background='rgba(16,185,129,.15)'" onmouseleave="this.style.background='transparent'">🏙️ NADOR</div>
+                        <div onclick="exportByCity('TETOUAN')" style="padding:10px 16px;color:#e5f7f1;cursor:pointer;font-weight:600;font-size:13px;transition:background .2s" onmouseenter="this.style.background='rgba(16,185,129,.15)'" onmouseleave="this.style.background='transparent'">🏙️ TETOUAN</div>
+                        <div onclick="exportByCity('AGADIR')" style="padding:10px 16px;color:#e5f7f1;cursor:pointer;font-weight:600;font-size:13px;transition:background .2s" onmouseenter="this.style.background='rgba(16,185,129,.15)'" onmouseleave="this.style.background='transparent'">🏙️ AGADIR</div>
+                        <div onclick="exportByCity('TANGER')" style="padding:10px 16px;color:#e5f7f1;cursor:pointer;font-weight:600;font-size:13px;transition:background .2s" onmouseenter="this.style.background='rgba(16,185,129,.15)'" onmouseleave="this.style.background='transparent'">🏙️ TANGIER</div>
+                    </div>
+                </div>
                 <button class="btn btn-red" onclick="deleteAll()">🗑️ DELETE ALL</button>
             </div>
             
@@ -547,60 +635,82 @@
     <div id="modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 id="modal-title">Add Applicant</h2>
+                <div class="modal-header-text">
+                    <h2 id="modal-title">Add Applicant</h2>
+                    <p>Passport Data Page</p>
+                </div>
                 <button class="close-btn" onclick="closeModal()">&times;</button>
             </div>
             <div class="modal-body">
-                <div class="form-group">
-                    <label>Group</label>
-                    <select id="fg">
-                        <option value="">No Group</option>
-                    </select>
+                <div class="modal-body-left">
+                    <label class="photo-drop" for="fph" id="photo-drop-box">
+                        <span id="photo-drop-placeholder">+</span>
+                        <div id="prev" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center"></div>
+                    </label>
+                    <div class="file-input-row">
+                        <input type="file" id="fph" accept="image/*" style="display:none">
+                        <span style="font-size:11px;color:#6b8f85">Max 200KB</span>
+                    </div>
+                    <div class="form-group">
+                        <label>Group</label>
+                        <select id="fg">
+                            <option value="">No Group</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>First Name *</label>
-                    <input type="text" id="ff" data-next="fl">
-                </div>
-                <div class="form-group">
-                    <label>Last Name *</label>
-                    <input type="text" id="fl" data-next="fp">
-                </div>
-                <div class="form-group">
-                    <label>Passport *</label>
-                    <input type="text" id="fp" data-next="fd">
-                </div>
-                <div class="form-group">
-                    <label>Date of Birth</label>
-                    <input type="date" id="fd" data-next="fb">
-                </div>
-                <div class="form-group">
-                    <label>Place of Birth</label>
-                    <select id="fb" data-next="fi">
-                        <option value="">Select city...</option>
-                        <option value="CASABLANCA">CASABLANCA</option>
-                        <option value="NADOR">NADOR</option>
-                        <option value="RABAT">RABAT</option>
-                        <option value="TETOUAN">TETOUAN</option>
-                        <option value="AGADIR">AGADIR</option>
-                        <option value="TANGER">TANGER</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Issue Place</label>
-                    <select id="fi" data-next="fph">
-                        <option value="">Select city...</option>
-                        <option value="CASABLANCA">CASABLANCA</option>
-                        <option value="NADOR">NADOR</option>
-                        <option value="RABAT">RABAT</option>
-                        <option value="TETOUAN">TETOUAN</option>
-                        <option value="AGADIR">AGADIR</option>
-                        <option value="TANGER">TANGER</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Photo (Max 200KB)</label>
-                    <input type="file" id="fph" accept="image/*">
-                    <div id="prev"></div>
+                <div class="modal-body-right">
+                    <div class="form-group">
+                        <label>First Name *</label>
+                        <input type="text" id="ff" data-next="fl">
+                    </div>
+                    <div class="form-group">
+                        <label>Last Name *</label>
+                        <input type="text" id="fl" data-next="fp">
+                    </div>
+                    <div class="form-group">
+                        <label>Passport Number *</label>
+                        <input type="text" id="fp" data-next="fd">
+                    </div>
+                    <div class="form-group">
+                        <label>Date of Birth</label>
+                        <input type="date" id="fd" data-next="fb">
+                    </div>
+                    <div class="form-group">
+                        <label>Place of Birth</label>
+                        <select id="fb" data-next="fi">
+                            <option value="">Select city...</option>
+                            <option value="CASABLANCA">CASABLANCA</option>
+                            <option value="NADOR">NADOR</option>
+                            <option value="RABAT">RABAT</option>
+                            <option value="TETOUAN">TETOUAN</option>
+                            <option value="AGADIR">AGADIR</option>
+                            <option value="TANGER">TANGER</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Issue Place</label>
+                        <select id="fi" data-next="fa1">
+                            <option value="">Select city...</option>
+                            <option value="CASABLANCA">CASABLANCA</option>
+                            <option value="NADOR">NADOR</option>
+                            <option value="RABAT">RABAT</option>
+                            <option value="TETOUAN">TETOUAN</option>
+                            <option value="AGADIR">AGADIR</option>
+                            <option value="TANGER">TANGER</option>
+                        </select>
+                    </div>
+                    <div class="form-group full">
+                        <label>Home Address</label>
+                        <input type="text" id="fa1" placeholder="Enter home address" data-next="fc">
+                    </div>
+                    <div class="form-group">
+                        <label>City</label>
+                        <input type="text" id="fc" placeholder="Enter city" data-next="fpc">
+                    </div>
+                    <div class="form-group">
+                        <label>Postal Code</label>
+                        <input type="text" id="fpc" placeholder="Postal code" data-next="fph">
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -610,6 +720,7 @@
         </div>
     </div>
     
+
     <!-- Add Group Modal -->
     <div id="group-modal" class="modal">
         <div class="modal-content">
@@ -773,8 +884,13 @@
             
             let h = `<div class="group-badge ${filter==='all'?'active':''}" onclick="filterBy('all')">All (${cnt.all})</div>`;
             groups.forEach(g => {
-                h += `<div class="group-badge ${filter===g?'active':''}">
-                    <span onclick="filterBy('${g}')" style="flex: 1;">${g} (${cnt[g]||0})</span>
+                const isHidden = hiddenGroups.has(g);
+                const hideIcon = isHidden ? '👁️‍🗨️' : '🙈';
+                const hideTitle = isHidden ? 'Show in extension' : 'Hide from extension';
+                const hiddenStyle = isHidden ? 'opacity:.5;' : '';
+                h += `<div class="group-badge ${filter===g?'active':''}" style="position:relative;${hiddenStyle}">
+                    <span onclick="filterBy('${g}')" style="flex: 1;">${g} (${cnt[g]||0})${isHidden?' 🚫':''}</span>
+                    <span class="group-hide-btn" onclick="event.stopPropagation(); toggleGroupHidden('${g}')" title="${hideTitle}" style="margin-left:4px;cursor:pointer;opacity:0;transition:opacity .2s;font-size:12px">${hideIcon}</span>
                     <span class="group-delete" onclick="event.stopPropagation(); deleteGroup('${g}')" title="Delete group">✖</span>
                 </div>`;
             });
@@ -854,28 +970,67 @@
             document.getElementById('fd').value = a.DateOfBirth||'';
             document.getElementById('fb').value = a.PlaceOfBirth||'';
             document.getElementById('fi').value = a.IssuePlace||'';
+            document.getElementById('fa1').value = a.HomeAddressLine1||'';
+            document.getElementById('fc').value = a.City||'';
+            document.getElementById('fpc').value = a.PostalCode||'';
             document.getElementById('fg').value = a.group||'';
             document.getElementById('fph').value = '';
-            document.getElementById('prev').innerHTML = a.photo ? `<img src="${a.photo}" style="max-width:150px;border-radius:12px;margin-top:10px">` : '';
+            currentPhotoBase64 = null;
+            document.getElementById('prev').innerHTML = a.photo ? `<img src="${a.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:12px">` : '';
+            try {
+                document.getElementById('photo-drop-placeholder').style.display = a.photo ? 'none' : '';
+            } catch(_){}
             document.getElementById('modal').classList.add('active');
         }
 
         function closeModal() { 
             document.getElementById('fph').value = '';
             document.getElementById('prev').innerHTML = '';
+            currentPhotoBase64 = null;
+            try { document.getElementById('photo-drop-placeholder').style.display = ''; } catch(_){}
             document.getElementById('modal').classList.remove('active'); 
         }
 
-        document.getElementById('fph').addEventListener('change', e => {
-            const f = e.target.files[0];
-            if (!f) return;
-            if (f.size > 200*1024) { toast('Photo too large! Max 200KB', 'error'); e.target.value = ''; return; }
-            const r = new FileReader();
-            r.onload = ev => document.getElementById('prev').innerHTML = `<img src="${ev.target.result}" style="max-width:150px;border-radius:12px;margin-top:10px">`;
-            r.readAsDataURL(f);
+        // ── Photo compression (canvas resize + JPEG quality) ────────
+        function compressImage(file, maxWidth, maxHeight, quality) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    let width = img.width, height = img.height;
+                    if (width > maxWidth || height > maxHeight) {
+                        const ratio = Math.min(maxWidth / width, maxHeight / height);
+                        width  = Math.round(width * ratio);
+                        height = Math.round(height * ratio);
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', quality));
+                };
+                img.src = URL.createObjectURL(file);
+            });
+        }
+
+        let currentPhotoBase64 = null;
+
+        document.getElementById('fph').addEventListener('change', async e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            try {
+                const compressed = await compressImage(file, 600, 600, 0.92);
+                currentPhotoBase64 = compressed;
+                const sizeKB = Math.round((compressed.length * 3 / 4) / 1024);
+                console.log(`📸 Compressed: ${(file.size/1024).toFixed(1)}KB → ~${sizeKB}KB`);
+                document.getElementById('prev').innerHTML = `<img src="${compressed}" style="width:100%;height:100%;object-fit:cover;border-radius:12px">`;
+                document.getElementById('photo-drop-placeholder').style.display = 'none';
+            } catch (err) {
+                toast('Photo error: ' + err.message, 'error');
+            }
         });
 
-        document.querySelectorAll('#ff, #fl, #fp, #fd, #fb, #fi').forEach(input => {
+        document.querySelectorAll('#ff, #fl, #fp, #fd, #fb, #fi, #fa1, #fc, #fpc').forEach(input => {
             input.addEventListener('keydown', e => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
@@ -907,20 +1062,14 @@
             const ln = document.getElementById('fl').value.trim();
             const pp = document.getElementById('fp').value.trim();
             if (!fn || !ln || !pp) { toast('Fill required fields!', 'error'); return; }
+            if (!validateDOB()) return;
             
             const pf = document.getElementById('fph').files[0];
             let ph = null;
             
-            if (pf) {
-                console.log(`📸 Photo selected: ${pf.name}, size: ${(pf.size/1024).toFixed(1)}KB`);
-                ph = await new Promise(res => {
-                    const r = new FileReader();
-                    r.onload = e => {
-                        console.log(`✅ Photo converted to base64, length: ${e.target.result.length} chars`);
-                        res(e.target.result);
-                    };
-                    r.readAsDataURL(pf);
-                });
+            if (pf && currentPhotoBase64) {
+                console.log(`📸 Using compressed photo (~${Math.round((currentPhotoBase64.length * 3 / 4) / 1024)}KB)`);
+                ph = currentPhotoBase64;
             } else if (editIdx >= 0 && apps[editIdx].photo) {
                 console.log('📸 Using existing photo from edit');
                 ph = apps[editIdx].photo;
@@ -934,6 +1083,9 @@
                 DateOfBirth: document.getElementById('fd').value,
                 PlaceOfBirth: document.getElementById('fb').value,
                 IssuePlace: document.getElementById('fi').value,
+                HomeAddressLine1: document.getElementById('fa1').value.trim(),
+                City: document.getElementById('fc').value.trim(),
+                PostalCode: document.getElementById('fpc').value.trim(),
                 photo: ph
             };
             
@@ -1034,16 +1186,87 @@
 
         // ==================== IMPORT/EXPORT ====================
 
-        function exportData() {
-            const s = JSON.stringify({ applicants: apps, groups }, null, 2);
+        function toggleExportDropdown() {
+            const dd = document.getElementById('export-dropdown');
+            dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+        }
+        // Close dropdown on outside click
+        document.addEventListener('click', e => {
+            const dd = document.getElementById('export-dropdown');
+            if (dd && dd.style.display === 'block' && !e.target.closest('[onclick*="toggleExportDropdown"]') && !e.target.closest('#export-dropdown')) {
+                dd.style.display = 'none';
+            }
+        });
+
+        function exportByCity(city) {
+            document.getElementById('export-dropdown').style.display = 'none';
+            const dateStr = new Date().toISOString().split('T')[0];
+            let filtered, filename;
+            if (city === 'ALL') {
+                filtered = { applicants: apps, groups };
+                filename = `bls-ALL-${dateStr}.json`;
+            } else {
+                // Find applicants whose PlaceOfBirth matches the city
+                const matchApps = apps.filter(a => (a.PlaceOfBirth || '').toUpperCase() === city.toUpperCase());
+                // Find which groups those applicants belong to
+                const matchGroups = [...new Set(matchApps.map(a => a.group).filter(Boolean))];
+                filtered = { applicants: matchApps, groups: matchGroups };
+                filename = `bls-${city}-${dateStr}.json`;
+            }
+            const s = JSON.stringify(filtered, null, 2);
             const b = new Blob([s], { type: 'application/json' });
             const u = URL.createObjectURL(b);
             const l = document.createElement('a');
             l.href = u;
-            l.download = `bls-${new Date().toISOString().split('T')[0]}.json`;
+            l.download = filename;
             l.click();
             URL.revokeObjectURL(u);
-            toast('Exported!', 'success');
+            toast(`Exported ${filtered.applicants.length} applicants (${city})`, 'success');
+        }
+
+        function exportData() { exportByCity('ALL'); }
+
+        // ==================== DOB VALIDATION ====================
+        function validateDOB() {
+            const fd = document.getElementById('fd');
+            if (!fd || !fd.value) return true;
+            const parts = fd.value.split('-');
+            if (parts.length !== 3) return true;
+            const year = parseInt(parts[0], 10);
+            const now = new Date().getFullYear();
+            if (isNaN(year) || year < 1920 || year > now || parts[0].length !== 4) {
+                toast('Invalid year in Date of Birth! Must be 4 digits between 1920-' + now, 'error');
+                fd.style.borderColor = '#f43f5e';
+                fd.focus();
+                return false;
+            }
+            fd.style.borderColor = '';
+            return true;
+        }
+
+        // ==================== GROUP HIDE/SHOW ====================
+        // Hidden groups stored in a Set. When hidden, group's applicants don't
+        // appear in the extension sync (filtered in the sync payload).
+        let hiddenGroups = new Set();
+        try {
+            const saved = localStorage.getItem('da_hidden_groups');
+            if (saved) hiddenGroups = new Set(JSON.parse(saved));
+        } catch(_) {}
+
+        function saveHiddenGroups() {
+            localStorage.setItem('da_hidden_groups', JSON.stringify([...hiddenGroups]));
+        }
+
+        function toggleGroupHidden(g) {
+            if (hiddenGroups.has(g)) {
+                hiddenGroups.delete(g);
+                toast(g + ' is now visible', 'success');
+            } else {
+                hiddenGroups.add(g);
+                toast(g + ' is now hidden from extension', 'success');
+            }
+            saveHiddenGroups();
+            renderApplicants();
         }
 
         function importData() {
