@@ -922,7 +922,6 @@ app.get('/', (req, res) => {
             saveHiddenGroups();
             renderTable();
         }
-        }
 
         function importData() {
             const inp = document.createElement('input');
