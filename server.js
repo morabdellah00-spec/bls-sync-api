@@ -13,6 +13,9 @@ let sharedData = {
   forceSyncTimestamp: 0
 };
 
+// Hidden groups — extensions won't receive applicants from these groups
+let hiddenGroups = new Set();
+
 let currentCommand = {
   location: '',
   visaType: '',
@@ -235,7 +238,17 @@ app.get('/', (req, res) => {
         .form-group input,
         .form-group select {
             width: 100%; padding: 14px 18px; border: 2px solid rgba(255,255,255,.08);
-            border-radius: 12px; font-size: 15px; transition: all 0.3s; background: #0b1424; color: #fff;
+            border-radius: 12px; font-size: 15px; transition: all 0.3s; background: #0b1424; color: #ffffff !important;
+            color-scheme: dark;
+        }
+        .form-group input::placeholder { color: #4c6b64; }
+        .form-group input:-webkit-autofill,
+        .form-group input:-webkit-autofill:hover,
+        .form-group input:-webkit-autofill:focus {
+            -webkit-text-fill-color: #ffffff !important;
+            -webkit-box-shadow: 0 0 0 1000px #0b1424 inset !important;
+            box-shadow: 0 0 0 1000px #0b1424 inset !important;
+            caret-color: #ffffff;
         }
         
         .form-group input:focus,
@@ -926,12 +939,29 @@ app.get('/', (req, res) => {
 
         // ── Group hide/show ──────────────────────────────────────────
         let hiddenGroups = new Set();
-        try { const s = localStorage.getItem('da_hidden_groups'); if (s) hiddenGroups = new Set(JSON.parse(s)); } catch(_) {}
-        function saveHiddenGroups() { localStorage.setItem('da_hidden_groups', JSON.stringify([...hiddenGroups])); }
-        function toggleGroupHidden(g) {
-            if (hiddenGroups.has(g)) { hiddenGroups.delete(g); toast(g + ' visible', 'success'); }
-            else { hiddenGroups.add(g); toast(g + ' hidden from extension', 'success'); }
-            saveHiddenGroups();
+
+        async function loadHiddenGroups() {
+            try {
+                const r = await fetch(API + '/api/hidden-groups');
+                const d = await r.json();
+                if (d.success) hiddenGroups = new Set(d.hidden);
+            } catch(_) {}
+        }
+
+        async function toggleGroupHidden(g) {
+            const action = hiddenGroups.has(g) ? 'show' : 'hide';
+            try {
+                const r = await fetch(API + '/api/hidden-groups', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action, group: g })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    hiddenGroups = new Set(d.hidden);
+                    toast(g + (action === 'hide' ? ' hidden from extension' : ' visible to extension'), 'success');
+                }
+            } catch(e) { toast('Failed: ' + e.message, 'error'); }
             renderTable();
         }
 
@@ -975,7 +1005,10 @@ app.get('/', (req, res) => {
             setTimeout(() => t.remove(), 3000);
         }
 
-        document.addEventListener('DOMContentLoaded', loadData);
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadHiddenGroups();
+            loadData();
+        });
 
         // FIX: Auto-refresh every 10 seconds but ONLY when modal is not open
         setInterval(() => {
@@ -986,13 +1019,33 @@ app.get('/', (req, res) => {
 </html>`);
 });
 
+// Hidden groups management
+app.get('/api/hidden-groups', (req, res) => {
+  res.json({ success: true, hidden: [...hiddenGroups] });
+});
+
+app.post('/api/hidden-groups', (req, res) => {
+  const { action, group } = req.body || {};
+  if (!group) return res.status(400).json({ success: false, error: 'group required' });
+  if (action === 'hide') hiddenGroups.add(group);
+  else if (action === 'show') hiddenGroups.delete(group);
+  console.log(`Group "${group}" ${action === 'hide' ? 'HIDDEN' : 'SHOWN'} (hidden: ${[...hiddenGroups].join(', ')})`);
+  res.json({ success: true, hidden: [...hiddenGroups] });
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', applicants: sharedData.applicants.length, groups: sharedData.groups.length });
 });
 
 // Returns full shared data including forceSyncTimestamp (used by extensions)
 app.get('/api/applicants', (req, res) => {
-  res.json(sharedData);
+  // Filter out applicants belonging to hidden groups
+  const filtered = {
+    ...sharedData,
+    applicants: sharedData.applicants.filter(a => !a.group || !hiddenGroups.has(a.group)),
+    groups: sharedData.groups.filter(g => !hiddenGroups.has(g))
+  };
+  res.json(filtered);
 });
 
 // FIX (bandwidth reduction): tiny endpoint for force-sync polling.
