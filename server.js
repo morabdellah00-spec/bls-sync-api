@@ -166,7 +166,9 @@ app.get('/', (req, res) => {
         tbody tr { background: #10192b; transition: all 0.3s; }
         tbody tr:hover { background: #0d1729; transform: translateX(5px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
         
-        tbody td { padding: 15px; border-top: 1px solid #f1f3f5; border-bottom: 1px solid #f1f3f5; }
+        tbody td { padding: 15px; border-top: 1px solid rgba(255,255,255,.05); border-bottom: 1px solid rgba(255,255,255,.05); color: #a7f3d0; }
+        tbody td:nth-child(2) { color: #34d399; font-weight: 700; }
+        thead th { color: #6b8f85 !important; }
         tbody td:first-child { border-left: 1px solid #f1f3f5; border-top-left-radius: 12px; border-bottom-left-radius: 12px; }
         tbody td:last-child  { border-right: 1px solid #f1f3f5; border-top-right-radius: 12px; border-bottom-right-radius: 12px; }
         
@@ -352,72 +354,77 @@ app.get('/', (req, res) => {
     </div>
     
     <div id="modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="modal-title">Add Applicant</h2>
+        <div class="modal-content" style="max-width:780px">
+            <div class="modal-header" style="background:linear-gradient(135deg,#0c2a22,#0f1b2b);border-bottom:3px solid #10b981">
+                <div><h2 id="modal-title" style="color:#e5f7f1">Add Applicant</h2><small style="color:#5eead4;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;font-size:10px">Passport Data Page</small></div>
                 <button class="close-btn" onclick="closeModal()">×</button>
             </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label>📁 Group</label>
-                    <select id="fg" onkeypress="handleEnter(event, 'ff')">
-                        <option value="">No Group</option>
-                    </select>
+            <div class="modal-body" style="display:grid;grid-template-columns:170px 1fr;gap:24px;padding:28px 30px">
+                <div style="display:flex;flex-direction:column;gap:12px">
+                    <label for="fph" style="width:100%;aspect-ratio:1;border-radius:14px;background:#0b1424;border:2px dashed rgba(16,185,129,.3);display:flex;align-items:center;justify-content:center;font-size:36px;color:rgba(16,185,129,.5);overflow:hidden;cursor:pointer;position:relative" id="photo-drop-box">
+                        <span id="photo-drop-plus">+</span>
+                        <div id="prev" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center"></div>
+                    </label>
+                    <input type="file" id="fph" accept="image/*" style="display:none">
+                    <span style="font-size:10px;color:#6b8f85;text-align:center">~100KB auto-compress</span>
+                    <div class="form-group" style="margin-bottom:0">
+                        <label>📁 Group</label>
+                        <select id="fg" onkeypress="handleEnter(event, 'ff')">
+                            <option value="">No Group</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>👤 First Name *</label>
-                    <input type="text" id="ff" placeholder="Enter first name" onkeypress="handleEnter(event, 'fl')">
-                </div>
-                <div class="form-group">
-                    <label>👤 Last Name *</label>
-                    <input type="text" id="fl" placeholder="Enter last name" onkeypress="handleEnter(event, 'fp')">
-                </div>
-                <div class="form-group">
-                    <label>🛂 Passport Number *</label>
-                    <input type="text" id="fp" placeholder="Enter passport number" onkeypress="handleEnter(event, 'fd')">
-                </div>
-                <div class="form-group">
-                    <label>📅 Date of Birth</label>
-                    <input type="date" id="fd" onkeypress="handleEnter(event, 'fb')">
-                </div>
-                <div class="form-group">
-                    <label>🏙️ Place of Birth</label>
-                    <select id="fb" onchange="autoFillIssuePlace()" onkeypress="handleEnter(event, 'fi')">
-                        <option value="">Select...</option>
-                        <option>CASABLANCA</option><option>NADOR</option><option>RABAT</option>
-                        <option>TETOUAN</option><option>AGADIR</option><option>TANGER</option>
-                        <option>FES</option><option>MARRAKECH</option><option>MEKNES</option><option>OUJDA</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>📍 Issue Place</label>
-                    <select id="fi" onkeypress="handleEnter(event, 'fa1')">
-                        <option value="">Select...</option>
-                        <option>CASABLANCA</option><option>NADOR</option><option>RABAT</option>
-                        <option>TETOUAN</option><option>AGADIR</option><option>TANGER</option>
-                        <option>FES</option><option>MARRAKECH</option><option>MEKNES</option><option>OUJDA</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>🏠 Home Address Line1</label>
-                    <input type="text" id="fa1" placeholder="Enter home address" onkeypress="handleEnter(event, 'fc')">
-                </div>
-                <div class="form-group">
-                    <label>🏙️ City</label>
-                    <input type="text" id="fc" placeholder="Enter city" onkeypress="handleEnter(event, 'fpc')">
-                </div>
-                <div class="form-group">
-                    <label>📮 Postal Code</label>
-                    <input type="text" id="fpc" placeholder="Enter postal code" onkeypress="handleEnter(event, 'fph')">
-                </div>
-                <div class="form-group">
-                    <label>📸 Photo (High Quality ~100KB)</label>
-                    <input type="file" id="fph" accept="image/*">
-                    <div id="upload-status" class="upload-status" style="display:none;"></div>
-                    <div id="prev"></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px 16px;align-content:start">
+                    <div class="form-group" style="margin-bottom:0">
+                        <label>First Name *</label>
+                        <input type="text" id="ff" placeholder="First name" onkeypress="handleEnter(event, 'fl')">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                        <label>Last Name *</label>
+                        <input type="text" id="fl" placeholder="Last name" onkeypress="handleEnter(event, 'fp')">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                        <label>Passport Number *</label>
+                        <input type="text" id="fp" placeholder="Passport" onkeypress="handleEnter(event, 'fd')">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                        <label>Date of Birth</label>
+                        <input type="date" id="fd" onkeypress="handleEnter(event, 'fb')">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                        <label>Place of Birth</label>
+                        <select id="fb" onchange="autoFillIssuePlace()" onkeypress="handleEnter(event, 'fi')">
+                            <option value="">Select...</option>
+                            <option>CASABLANCA</option><option>NADOR</option><option>RABAT</option>
+                            <option>TETOUAN</option><option>AGADIR</option><option>TANGER</option>
+                            <option>FES</option><option>MARRAKECH</option><option>MEKNES</option><option>OUJDA</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                        <label>Issue Place</label>
+                        <select id="fi" onkeypress="handleEnter(event, 'fa1')">
+                            <option value="">Select...</option>
+                            <option>CASABLANCA</option><option>NADOR</option><option>RABAT</option>
+                            <option>TETOUAN</option><option>AGADIR</option><option>TANGER</option>
+                            <option>FES</option><option>MARRAKECH</option><option>MEKNES</option><option>OUJDA</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;grid-column:1/-1">
+                        <label>Home Address</label>
+                        <input type="text" id="fa1" placeholder="Home address" onkeypress="handleEnter(event, 'fc')">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                        <label>City</label>
+                        <input type="text" id="fc" placeholder="City" onkeypress="handleEnter(event, 'fpc')">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                        <label>Postal Code</label>
+                        <input type="text" id="fpc" placeholder="Postal code">
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
+                <div id="upload-status" class="upload-status" style="display:none;flex:1"></div>
                 <button class="btn btn-danger" onclick="closeModal()">✕ Cancel</button>
                 <button class="btn btn-success" id="save-btn" onclick="save()">✓ Save Applicant</button>
             </div>
@@ -642,16 +649,20 @@ app.get('/', (req, res) => {
             document.getElementById('fpc').value = a.PostalCode || '';
             document.getElementById('fph').value = '';
             document.getElementById('prev').innerHTML = a.photo
-                ? \`<img src="\${a.photo}" style="max-width:200px;margin-top:15px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);">\`
+                ? \`<img src="\${a.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">\`
                 : '';
+            try { document.getElementById('photo-drop-plus').style.display = a.photo ? 'none' : ''; } catch(_) {}
             document.getElementById('upload-status').style.display = 'none';
             document.getElementById('save-btn').disabled = false;
             document.getElementById('modal').classList.add('active');
         }
 
         function closeModal() {
-            isModalOpen = false; // FIX: resume auto-refresh
+            isModalOpen = false;
             document.getElementById('modal').classList.remove('active');
+            document.getElementById('prev').innerHTML = '';
+            currentPhotoBase64 = null;
+            try { document.getElementById('photo-drop-plus').style.display = ''; } catch(_) {}
         }
 
         document.getElementById('fph').onchange = async (e) => {
@@ -673,7 +684,8 @@ app.get('/', (req, res) => {
                 statusEl.textContent = \`✅ Photo optimized to ~\${sizeKB}KB (High Quality)!\`;
                 statusEl.style.background = '#d4edda';
                 statusEl.style.color = '#155724';
-                prevEl.innerHTML = \`<img src="\${compressed}" style="max-width:200px;margin-top:15px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);">\`;
+                prevEl.innerHTML = \`<img src="\${compressed}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">\`;
+                try { document.getElementById('photo-drop-plus').style.display = 'none'; } catch(_) {}
             } catch (error) {
                 console.error('Optimization error:', error);
                 statusEl.textContent = '❌ Optimization failed! Try again.';
