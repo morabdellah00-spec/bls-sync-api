@@ -10,7 +10,8 @@ let sharedData = {
   applicants: [],
   groups: [],
   lastModified: new Date().toISOString(),
-  forceSyncTimestamp: 0
+  forceSyncTimestamp: 0,
+  _deletedSince: [] // Track deleted passports with timestamps for delta sync
 };
 
 // Hidden groups — extensions won't receive applicants from these groups
@@ -1056,15 +1057,41 @@ app.get('/api/health', (req, res) => {
 app.get('/api/applicants', (req, res) => {
   // Dashboard passes ?all=1 to see everything (including hidden groups).
   // Extensions don't pass this flag, so they get filtered data.
-  if (req.query.all === '1') {
-    return res.json(sharedData);
+  // Extensions pass ?lite=1 for auto-sync — strips photos to save bandwidth.
+  const isAll = req.query.all === '1';
+  const isLite = req.query.lite === '1';
+
+  let data;
+  if (isAll) {
+    data = sharedData;
+  } else {
+    data = {
+      ...sharedData,
+      applicants: sharedData.applicants.filter(a => !a.group || !hiddenGroups.has(a.group)),
+      groups: sharedData.groups.filter(g => !hiddenGroups.has(g))
+    };
   }
-  const filtered = {
-    ...sharedData,
-    applicants: sharedData.applicants.filter(a => !a.group || !hiddenGroups.has(a.group)),
-    groups: sharedData.groups.filter(g => !hiddenGroups.has(g))
-  };
-  res.json(filtered);
+
+  // ETag based on lastModified — if nothing changed, return 304
+  const etag = '"' + (sharedData.lastModified || Date.now()) + '"';
+  res.set('ETag', etag);
+  if (req.headers['if-none-match'] === etag) {
+    return res.status(304).end();
+  }
+
+  // Lite mode: strip photos to save bandwidth (~97% reduction)
+  if (isLite) {
+    const liteData = {
+      ...data,
+      applicants: data.applicants.map(a => {
+        const { photo, ...rest } = a;
+        return rest;
+      })
+    };
+    return res.json(liteData);
+  }
+
+  res.json(data);
 });
 
 // FIX (bandwidth reduction): tiny endpoint for force-sync polling.
@@ -1078,6 +1105,61 @@ app.get('/api/sync-check', (req, res) => {
     forceSyncTimestamp: sharedData.forceSyncTimestamp || 0,
     lastModified:       sharedData.lastModified       || null,
     applicantCount:     sharedData.applicants.length
+  });
+});
+
+// ── DELTA SYNC: Only returns what changed since a timestamp ──
+// Extension sends ?since=TIMESTAMP
+// Server returns: { added: [...], updated: [...], deleted: ['passport1',...], lastSync: timestamp }
+// - added: new applicants (WITH photos)
+// - updated: modified applicants (with photo ONLY if photo changed)
+// - deleted: passport numbers of removed applicants
+app.get('/api/applicants/delta', (req, res) => {
+  const since = parseInt(req.query.since) || 0;
+  const filtered = sharedData.applicants.filter(a => !a.group || !hiddenGroups.has(a.group));
+
+  if (since === 0) {
+    // First sync — send everything with photos
+    return res.json({
+      added: filtered,
+      updated: [],
+      deleted: [],
+      lastSync: Date.now(),
+      full: true
+    });
+  }
+
+  // Find applicants added or updated after 'since'
+  const changed = filtered.filter(a => (a._updatedAt || 0) > since);
+
+  // Separate into truly new (no _createdAt before since) and updated
+  const added = [];
+  const updated = [];
+  changed.forEach(a => {
+    if ((a._createdAt || a._updatedAt || 0) > since) {
+      added.push(a); // New — include photo
+    } else {
+      // Updated — include photo only if _photoUpdatedAt > since
+      if ((a._photoUpdatedAt || 0) > since) {
+        updated.push(a); // Photo changed — include it
+      } else {
+        const { photo, ...rest } = a;
+        updated.push(rest); // Text-only update — no photo
+      }
+    }
+  });
+
+  // Deleted applicants since timestamp
+  const deleted = (sharedData._deletedSince || [])
+    .filter(d => d.ts > since)
+    .map(d => d.passportNo);
+
+  res.json({
+    added,
+    updated,
+    deleted,
+    lastSync: Date.now(),
+    full: false
   });
 });
 
@@ -1098,19 +1180,26 @@ app.post('/api/applicants/sync', (req, res) => {
     const existing = serverMap.get(incoming.PassportNo);
 
     if (!existing) {
-      // New applicant — always add
+      // New applicant — always add, mark creation time
+      const now = Date.now();
       serverMap.set(incoming.PassportNo, {
         ...incoming,
-        _updatedAt: incoming._updatedAt || Date.now()
+        _updatedAt: incoming._updatedAt || now,
+        _createdAt: now,
+        _photoUpdatedAt: incoming.photo ? now : 0
       });
     } else {
       // Both sides have this passport: keep the more recently updated one
       const existingTime = existing._updatedAt  || 0;
       const incomingTime = incoming._updatedAt  || 0;
       if (incomingTime >= existingTime) {
+        // Track if photo changed
+        const photoChanged = incoming.photo !== existing.photo;
         serverMap.set(incoming.PassportNo, {
           ...incoming,
-          _updatedAt: incomingTime || Date.now()
+          _updatedAt: incomingTime || Date.now(),
+          _createdAt: existing._createdAt || Date.now(),
+          _photoUpdatedAt: photoChanged ? Date.now() : (existing._photoUpdatedAt || 0)
         });
       }
       // else: server version is newer — keep it, discard incoming
@@ -1134,27 +1223,41 @@ app.post('/api/applicants/sync', (req, res) => {
 // FIX: Atomic group delete — safe, doesn't require client to send full applicant list
 app.delete('/api/applicants/group/:groupName', (req, res) => {
   const groupName = decodeURIComponent(req.params.groupName);
+  const now = Date.now();
+  // Track deleted passports for delta sync
+  sharedData.applicants.filter(a => a.group === groupName).forEach(a => {
+    if (a.PassportNo) sharedData._deletedSince.push({ passportNo: a.PassportNo, ts: now });
+  });
   sharedData.applicants = sharedData.applicants.filter(a => a.group !== groupName);
   sharedData.groups     = sharedData.groups.filter(g => g !== groupName);
   sharedData.lastModified = new Date().toISOString();
+  // Keep only last 1 hour of deletions
+  sharedData._deletedSince = (sharedData._deletedSince || []).filter(d => d.ts > now - 3600000);
   res.json({ success: true, data: sharedData });
 });
 
-// FIX: Atomic single-applicant delete by passport number
 app.delete('/api/applicants/:passportNo', (req, res) => {
   const passportNo = decodeURIComponent(req.params.passportNo);
+  sharedData._deletedSince = sharedData._deletedSince || [];
+  sharedData._deletedSince.push({ passportNo, ts: Date.now() });
   sharedData.applicants = sharedData.applicants.filter(a => a.PassportNo !== passportNo);
   sharedData.lastModified = new Date().toISOString();
+  // Keep only last 1 hour
+  sharedData._deletedSince = sharedData._deletedSince.filter(d => d.ts > Date.now() - 3600000);
   res.json({ success: true, data: sharedData });
 });
 
-// Delete ALL applicants
 app.delete('/api/applicants', (req, res) => {
+  const now = Date.now();
+  sharedData.applicants.forEach(a => {
+    if (a.PassportNo) sharedData._deletedSince.push({ passportNo: a.PassportNo, ts: now });
+  });
   sharedData = {
     applicants: [],
     groups: [],
     lastModified: new Date().toISOString(),
-    forceSyncTimestamp: sharedData.forceSyncTimestamp // preserve so extensions don't re-trigger
+    forceSyncTimestamp: sharedData.forceSyncTimestamp,
+    _deletedSince: (sharedData._deletedSince || []).filter(d => d.ts > now - 3600000)
   };
   res.json({ success: true });
 });
