@@ -635,10 +635,16 @@ app.get('/', (req, res) => {
                 return;
             }
             
-            tb.innerHTML = filtered.map(a => {
+            // One applicant row. opts.hidden marks family members, revealed by
+            // clicking their family header.
+            function rowHtml(a, opts) {
                 const idx = apps.indexOf(a);
-                return \`<tr>
-                    <td>\${a.photo ? \`<img class="photo-thumb" src="\${a.photo}">\` : '<div class="no-photo">👤</div>'}</td>
+                const o = opts || {};
+                const cls = o.famKey ? ' class="fam-member fam-' + o.famKey + '"' : '';
+                const style = o.hidden ? ' style="display:none"' : '';
+                const indent = o.famKey ? 'padding-left:26px;' : '';
+                return \`<tr\${cls}\${style}>
+                    <td style="\${indent}">\${a.photo ? \`<img class="photo-thumb" src="\${a.photo}">\` : '<div class="no-photo">👤</div>'}</td>
                     <td><strong>\${a.FirstName || ''} \${a.LastName || ''}</strong></td>
                     <td>\${a.PassportNo || ''}</td>
                     <td>\${a.DateOfBirth || '-'}</td>
@@ -649,7 +655,57 @@ app.get('/', (req, res) => {
                         <button class="icon-btn" onclick="del(\${idx})">🗑️ Delete</button>
                     </td>
                 </tr>\`;
-            }).join('');
+            }
+
+            // While searching, show a flat list — a member inside a collapsed
+            // family would otherwise be invisible even though it matched.
+            if (q) {
+                tb.innerHTML = filtered.map(a => rowHtml(a)).join('');
+                return;
+            }
+
+            // Collapse families (group + familyName) into one clickable header
+            // row; individuals render as normal rows.
+            const fams = new Map(), singles = [];
+            filtered.forEach(a => {
+                const f = String(a.familyName || '').trim().toUpperCase();
+                if (!f) { singles.push(a); return; }
+                const key = (a.group || '') + '||' + f;
+                if (!fams.has(key)) fams.set(key, { name: f, group: a.group || '', members: [] });
+                fams.get(key).members.push(a);
+            });
+
+            let html = '';
+            let fi = 0;
+            [...fams.values()]
+                .sort((x, y) => (x.group + x.name).localeCompare(y.group + y.name))
+                .forEach(fam => {
+                    const key = 'f' + (fi++);
+                    const photos = fam.members.filter(m => m.photo).length;
+                    html += \`<tr class="fam-header" data-fam="\${key}" style="cursor:pointer;background:rgba(139,92,246,.10)">
+                        <td style="font-size:20px">👨‍👩‍👧</td>
+                        <td colspan="4"><strong style="font-size:15px">\${fam.name}</strong>
+                            <span style="opacity:.7"> — \${fam.members.length} applicant\${fam.members.length > 1 ? 's' : ''}\${photos ? ' · ' + photos + ' 📷' : ''}</span>
+                            <span class="fam-caret" style="margin-left:8px;opacity:.6">▶</span></td>
+                        <td>\${fam.group ? '<span class="group-badge">' + fam.group + '</span>' : '-'}</td>
+                        <td class="actions"><span style="opacity:.5;font-size:11px">click to open</span></td>
+                    </tr>\`;
+                    html += fam.members.map(m => rowHtml(m, { famKey: key, hidden: true })).join('');
+                });
+            html += singles.map(a => rowHtml(a)).join('');
+            tb.innerHTML = html;
+
+            // Expand / collapse
+            tb.querySelectorAll('.fam-header').forEach(hdr => {
+                hdr.addEventListener('click', () => {
+                    const key = hdr.dataset.fam;
+                    const rows = tb.querySelectorAll('.fam-' + key);
+                    const open = rows.length && rows[0].style.display !== 'none';
+                    rows.forEach(r => r.style.display = open ? 'none' : '');
+                    const caret = hdr.querySelector('.fam-caret');
+                    if (caret) caret.textContent = open ? '▶' : '▼';
+                });
+            });
         }
 
         // ── FAMILY GROUPING ────────────────────────────────────────────
