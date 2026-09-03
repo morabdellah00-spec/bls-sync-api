@@ -643,8 +643,8 @@ app.get('/', (req, res) => {
                 const cls = o.famKey ? ' class="fam-member fam-' + o.famKey + '"' : '';
                 // Family members carry the family's violet identity so they are
                 // visually part of it, not loose rows that happen to sit below.
-                const famStyle = 'display:none;background:rgba(139,92,246,.09);box-shadow:inset 4px 0 0 #8b5cf6;';
-                const famStyleOpen = 'background:rgba(139,92,246,.09);box-shadow:inset 4px 0 0 #8b5cf6;';
+                const famStyle = 'display:none;background:rgba(139,92,246,.14);box-shadow:inset 4px 0 0 #8b5cf6;';
+                const famStyleOpen = 'background:rgba(139,92,246,.14);box-shadow:inset 4px 0 0 #8b5cf6;';
                 const style = o.famKey
                     ? ' style="' + (o.hidden ? famStyle : famStyleOpen) + '"'
                     : (o.hidden ? ' style="display:none"' : '');
@@ -688,13 +688,13 @@ app.get('/', (req, res) => {
                 .forEach(fam => {
                     const key = 'f' + (fi++);
                     const photos = fam.members.filter(m => m.photo).length;
-                    html += \`<tr class="fam-header" data-fam="\${key}" style="cursor:pointer;background:rgba(139,92,246,.10)">
+                    html += \`<tr class="fam-header" data-fam="\${key}" style="cursor:pointer;background:#6d28d9;color:#fff">
                         <td style="font-size:20px">👨‍👩‍👧</td>
-                        <td colspan="4"><strong style="font-size:15px">\${fam.name}</strong>
-                            <span style="opacity:.7"> — \${fam.members.length} applicant\${fam.members.length > 1 ? 's' : ''}\${photos ? ' · ' + photos + ' 📷' : ''}</span>
-                            <span class="fam-caret" style="margin-left:8px;opacity:.6">▶</span></td>
+                        <td colspan="4"><strong style="font-size:15px;color:#fff;letter-spacing:.5px">\${fam.name}</strong>
+                            <span style="opacity:.85;color:#e9d5ff"> — \${fam.members.length} applicant\${fam.members.length > 1 ? 's' : ''}\${photos ? ' · ' + photos + ' 📷' : ''}</span>
+                            <span class="fam-caret" style="margin-left:8px;color:#fff">▶</span></td>
                         <td>\${fam.group ? '<span class="group-badge">' + fam.group + '</span>' : '-'}</td>
-                        <td class="actions"><span style="opacity:.5;font-size:11px">click to open</span></td>
+                        <td class="actions"><span style="opacity:.8;font-size:11px;color:#e9d5ff">click to open</span></td>
                     </tr>\`;
                     html += fam.members.map(m => rowHtml(m, { famKey: key, hidden: true })).join('');
                 });
