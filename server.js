@@ -641,7 +641,13 @@ app.get('/', (req, res) => {
                 const idx = apps.indexOf(a);
                 const o = opts || {};
                 const cls = o.famKey ? ' class="fam-member fam-' + o.famKey + '"' : '';
-                const style = o.hidden ? ' style="display:none"' : '';
+                // Family members carry the family's violet identity so they are
+                // visually part of it, not loose rows that happen to sit below.
+                const famStyle = 'display:none;background:rgba(139,92,246,.09);box-shadow:inset 4px 0 0 #8b5cf6;';
+                const famStyleOpen = 'background:rgba(139,92,246,.09);box-shadow:inset 4px 0 0 #8b5cf6;';
+                const style = o.famKey
+                    ? ' style="' + (o.hidden ? famStyle : famStyleOpen) + '"'
+                    : (o.hidden ? ' style="display:none"' : '');
                 const indent = o.famKey ? 'padding-left:26px;' : '';
                 return \`<tr\${cls}\${style}>
                     <td style="\${indent}">\${a.photo ? \`<img class="photo-thumb" src="\${a.photo}">\` : '<div class="no-photo">👤</div>'}</td>
@@ -701,7 +707,7 @@ app.get('/', (req, res) => {
                     const key = hdr.dataset.fam;
                     const rows = tb.querySelectorAll('.fam-' + key);
                     const open = rows.length && rows[0].style.display !== 'none';
-                    rows.forEach(r => r.style.display = open ? 'none' : '');
+                    rows.forEach(r => r.style.display = open ? 'none' : 'table-row');
                     const caret = hdr.querySelector('.fam-caret');
                     if (caret) caret.textContent = open ? '▶' : '▼';
                 });
