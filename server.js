@@ -387,9 +387,26 @@ app.get('/', (req, res) => {
                     <span style="font-size:10px;color:#6b8f85;text-align:center">~100KB auto-compress</span>
                     <div class="form-group" style="margin-bottom:0">
                         <label>📁 Group</label>
-                        <select id="fg" onkeypress="handleEnter(event, 'ff')">
+                        <select id="fg" onchange="refreshFamilyList()" onkeypress="handleEnter(event, 'ff')">
                             <option value="">No Group</option>
                         </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                        <label>Type</label>
+                        <div style="display:flex;gap:8px">
+                            <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border-radius:8px;background:#0b1424;border:1px solid rgba(255,255,255,.12);cursor:pointer;font-size:12px;font-weight:700">
+                                <input type="radio" name="ftype" value="indv" id="ftype-indv" checked onchange="onTypeChange()"> 👤 Individual
+                            </label>
+                            <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border-radius:8px;background:#0b1424;border:1px solid rgba(255,255,255,.12);cursor:pointer;font-size:12px;font-weight:700">
+                                <input type="radio" name="ftype" value="fam" id="ftype-fam" onchange="onTypeChange()"> 👨‍👩‍👧 Family
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;display:none" id="fam-wrap">
+                        <label>👨‍👩‍👧 Family name</label>
+                        <input type="text" id="ffam" list="fam-options" placeholder="e.g. BENALI" autocomplete="off">
+                        <datalist id="fam-options"></datalist>
+                        <small style="opacity:.6;font-size:10px">Pick an existing family, or type a new name for the first member.</small>
                     </div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px 16px;align-content:start">
@@ -626,7 +643,7 @@ app.get('/', (req, res) => {
                     <td>\${a.PassportNo || ''}</td>
                     <td>\${a.DateOfBirth || '-'}</td>
                     <td>\${a.PlaceOfBirth || '-'}\${(a.City || a.PostalCode) ? \`<br><small style="opacity:.65">🏠 \${[a.City, a.PostalCode].filter(Boolean).join(', ')}</small>\` : ''}</td>
-                    <td>\${a.group ? '<span class="group-badge">' + a.group + '</span>' : '-'}</td>
+                    <td>\${a.group ? '<span class="group-badge">' + a.group + '</span>' : '-'}\${String(a.familyName || '').trim() ? '<br><small style="opacity:.8">👨‍👩‍👧 ' + a.familyName + '</small>' : ''}</td>
                     <td class="actions">
                         <button class="icon-btn" onclick="edit(\${idx})">✏️ Edit</button>
                         <button class="icon-btn" onclick="del(\${idx})">🗑️ Delete</button>
@@ -635,13 +652,39 @@ app.get('/', (req, res) => {
             }).join('');
         }
 
+        // ── FAMILY GROUPING ────────────────────────────────────────────
+        // familyName is optional. Empty = individual, which is the default and
+        // what every pre-existing applicant already is. A family is identified
+        // by group + familyName, so the same name in two groups stays separate.
+        function onTypeChange() {
+            const isFam = document.getElementById('ftype-fam').checked;
+            document.getElementById('fam-wrap').style.display = isFam ? '' : 'none';
+            if (isFam) { refreshFamilyList(); setTimeout(() => document.getElementById('ffam').focus(), 50); }
+            else document.getElementById('ffam').value = '';
+        }
+
+        // Offer every family that already exists in the currently selected group,
+        // so members 2..N are picked from the list instead of retyped.
+        function refreshFamilyList() {
+            const g = document.getElementById('fg').value;
+            const names = [...new Set(apps
+                .filter(a => (a.group || '') === g && String(a.familyName || '').trim())
+                .map(a => String(a.familyName).trim()))].sort();
+            document.getElementById('fam-options').innerHTML =
+                names.map(nm => '<option value="' + nm.replace(/"/g, '&quot;') + '">').join('');
+        }
+
         function showAddModal() {
             isModalOpen = true; // FIX: pause auto-refresh while editing
             editIdx = -1;
             currentPhotoBase64 = null;
             document.getElementById('modal-title').textContent = 'Add New Applicant';
             document.getElementById('fg').value = filter === 'all' ? '' : filter;
-            ['ff','fl','fp','fd','fb','fi','fa1','fc','fpc','fph'].forEach(id => document.getElementById(id).value = '');
+            ['ff','fl','fp','fd','fb','fi','fa1','fc','fpc','fph','ffam'].forEach(id => document.getElementById(id).value = '');
+            // Default is ALWAYS Individual — most applicants are, so it is never re-selected by hand
+            document.getElementById('ftype-indv').checked = true;
+            onTypeChange();
+            refreshFamilyList();
             document.getElementById('prev').innerHTML = '';
             document.getElementById('upload-status').style.display = 'none';
             document.getElementById('save-btn').disabled = false;
@@ -666,6 +709,12 @@ app.get('/', (req, res) => {
             document.getElementById('fc').value = a.City || '';
             document.getElementById('fpc').value = a.PostalCode || '';
             document.getElementById('fph').value = '';
+            const fam = String(a.familyName || '').trim();
+            document.getElementById('ftype-fam').checked  = !!fam;
+            document.getElementById('ftype-indv').checked = !fam;
+            document.getElementById('ffam').value = fam;
+            document.getElementById('fam-wrap').style.display = fam ? '' : 'none';
+            refreshFamilyList();
             document.getElementById('prev').innerHTML = a.photo
                 ? \`<img src="\${a.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">\`
                 : '';
@@ -792,6 +841,9 @@ app.get('/', (req, res) => {
                 HomeAddressLine1: document.getElementById('fa1').value.trim(),
                 City:        document.getElementById('fc').value.trim(),
                 PostalCode:  document.getElementById('fpc').value.trim(),
+                familyName:  document.getElementById('ftype-fam').checked
+                               ? document.getElementById('ffam').value.trim().toUpperCase()
+                               : '',
                 photo:       currentPhotoBase64,
                 _updatedAt:  Date.now()   // FIX: timestamp for conflict resolution
             };
