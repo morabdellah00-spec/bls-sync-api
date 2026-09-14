@@ -681,22 +681,29 @@ app.get('/', (req, res) => {
                 fams.get(key).members.push(a);
             });
 
+            // Which families are expanded, keyed by group||name so the state
+            // survives the 10-second auto-refresh (which rebuilds this table)
+            // and isn't tied to a render index that can shift.
+            window.openFams = window.openFams || new Set();
+
             let html = '';
             let fi = 0;
             [...fams.values()]
                 .sort((x, y) => (x.group + x.name).localeCompare(y.group + y.name))
                 .forEach(fam => {
                     const key = 'f' + (fi++);
+                    const stable = fam.group + '||' + fam.name;
+                    const isOpen = window.openFams.has(stable);
                     const photos = fam.members.filter(m => m.photo).length;
-                    html += \`<tr class="fam-header" data-fam="\${key}" style="cursor:pointer;background:#6d28d9;color:#fff">
+                    html += \`<tr class="fam-header" data-fam="\${key}" data-stable="\${stable.replace(/"/g, '&quot;')}" style="cursor:pointer;background:#6d28d9;color:#fff">
                         <td style="font-size:20px">👨‍👩‍👧</td>
                         <td colspan="4"><strong style="font-size:15px;color:#fff;letter-spacing:.5px">\${fam.name}</strong>
                             <span style="opacity:.85;color:#e9d5ff"> — \${fam.members.length} applicant\${fam.members.length > 1 ? 's' : ''}\${photos ? ' · ' + photos + ' 📷' : ''}</span>
-                            <span class="fam-caret" style="margin-left:8px;color:#fff">▶</span></td>
+                            <span class="fam-caret" style="margin-left:8px;color:#fff">\${isOpen ? '▼' : '▶'}</span></td>
                         <td>\${fam.group ? '<span class="group-badge">' + fam.group + '</span>' : '-'}</td>
                         <td class="actions"><span style="opacity:.8;font-size:11px;color:#e9d5ff">click to open</span></td>
                     </tr>\`;
-                    html += fam.members.map(m => rowHtml(m, { famKey: key, hidden: true })).join('');
+                    html += fam.members.map(m => rowHtml(m, { famKey: key, hidden: !isOpen })).join('');
                 });
             html += singles.map(a => rowHtml(a)).join('');
             tb.innerHTML = html;
@@ -705,11 +712,13 @@ app.get('/', (req, res) => {
             tb.querySelectorAll('.fam-header').forEach(hdr => {
                 hdr.addEventListener('click', () => {
                     const key = hdr.dataset.fam;
+                    const stable = hdr.dataset.stable;
                     const rows = tb.querySelectorAll('.fam-' + key);
                     const open = rows.length && rows[0].style.display !== 'none';
                     rows.forEach(r => r.style.display = open ? 'none' : 'table-row');
                     const caret = hdr.querySelector('.fam-caret');
                     if (caret) caret.textContent = open ? '▶' : '▼';
+                    if (open) window.openFams.delete(stable); else window.openFams.add(stable);
                 });
             });
         }
@@ -1272,6 +1281,11 @@ app.get('/api/applicants/delta', (req, res) => {
     added,
     updated,
     deleted,
+    // Manifest of every passport the extension should hold right now.
+    // `deleted` only lists deletions from the last hour (and none after a
+    // restart), so a browser that missed the window would keep a removed
+    // applicant forever. The client drops anything not in this list.
+    passports: filtered.map(a => a.PassportNo).filter(Boolean),
     lastSync: Date.now(),
     full: false
   });
