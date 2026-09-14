@@ -675,6 +675,9 @@ function renderDashboard(opts) {
                 const d = await r.json();
                 apps = d.applicants || [];
                 groups = d.groups || [];
+                // A group created since the page loaded has no link yet —
+                // fetch again so its 🔗 appears without a manual refresh.
+                if (!IS_CLIENT && window.__AUTH && groups.some(g => !groupLinks[g])) await loadGroupLinks();
                 updateUI();
             } catch (e) {
                 console.error('Load failed', e);
