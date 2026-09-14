@@ -23,8 +23,109 @@ let currentCommand = {
   timestamp: Date.now()
 };
 
+const crypto = require('crypto');
+
+// ── ACCESS ──────────────────────────────────────────────────────────
+// One setting, ADMIN_KEY (Railway → Variables). While it is unset the
+// dashboard stays open exactly as before and shows a warning banner.
+// Once set:
+//   • /  needs the key: visit /?key=XXX once, a cookie remembers it
+//   • destructive + admin-only API routes need the same cookie
+//   • every group gets a client link /g/<token>. The token is an HMAC of
+//     the group name under ADMIN_KEY — nothing is stored, so links
+//     survive every restart, and they cannot be guessed without the key.
+// The extension's own sync routes are deliberately left open; the
+// browsers do not send any credential yet.
+const ADMIN_KEY = (process.env.ADMIN_KEY || '').trim();
+const authEnabled = () => ADMIN_KEY.length > 0;
+
+function safeEq(a, b) {
+  const x = Buffer.from(String(a || '')), y = Buffer.from(String(b || ''));
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+function cookieVal(req, name) {
+  const raw = req.headers.cookie || '';
+  for (const part of raw.split(';')) {
+    const i = part.indexOf('=');
+    if (i < 0) continue;
+    if (part.slice(0, i).trim() === name) return decodeURIComponent(part.slice(i + 1).trim());
+  }
+  return '';
+}
+function isAdmin(req) {
+  if (!authEnabled()) return true;               // no key configured → open
+  return safeEq(cookieVal(req, 'admin'), ADMIN_KEY) || safeEq(req.query.key, ADMIN_KEY);
+}
+function requireAdmin(req, res, next) {
+  if (isAdmin(req)) return next();
+  res.status(401).json({ error: 'admin key required' });
+}
+
+// Client token for a group. 20 hex chars = 80 bits; unguessable.
+function groupToken(groupName) {
+  if (!authEnabled()) return null;
+  return crypto.createHmac('sha256', ADMIN_KEY).update(String(groupName)).digest('hex').slice(0, 20);
+}
+// Every group name we know of — the groups list plus anything on an applicant.
+function allGroupNames() {
+  const set = new Set(sharedData.groups || []);
+  (sharedData.applicants || []).forEach(a => { if (a.group) set.add(a.group); });
+  return [...set];
+}
+function groupForToken(token) {
+  if (!authEnabled() || !token) return null;
+  for (const g of allGroupNames()) {
+    if (safeEq(groupToken(g), token)) return g;
+  }
+  return null;
+}
+
+function loginPage(res, bad) {
+  res.status(401).send('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Sign in</title>'
+  + '<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b1424;font-family:system-ui;color:#e2e8f0}'
+  + 'form{background:#111c2e;padding:34px 38px;border-radius:16px;border:1px solid rgba(16,185,129,.25);box-shadow:0 20px 60px rgba(0,0,0,.5);min-width:320px}'
+  + 'h2{margin:0 0 6px;color:#10b981}p{margin:0 0 18px;opacity:.7;font-size:13px}'
+  + 'input{width:100%;box-sizing:border-box;padding:12px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:#0b1424;color:#fff;font-size:15px;margin-bottom:12px}'
+  + 'button{width:100%;padding:12px;border:none;border-radius:10px;background:#10b981;color:#06251d;font-weight:800;font-size:15px;cursor:pointer}'
+  + '.bad{color:#f87171;font-size:13px;margin-bottom:10px}</style></head><body>'
+  + '<form method="GET" action="/"><h2>Admin dashboard</h2><p>Enter the admin key to continue.</p>'
+  + (bad ? '<div class="bad">Wrong key.</div>' : '')
+  + '<input type="password" name="key" placeholder="Admin key" autofocus autocomplete="current-password">'
+  + '<button>Sign in</button></form></body></html>');
+}
+
+// Admin dashboard
 app.get('/', (req, res) => {
-  res.send(`<!DOCTYPE html>
+  if (authEnabled()) {
+    if (req.query.key !== undefined) {
+      if (!safeEq(req.query.key, ADMIN_KEY)) return loginPage(res, true);
+      // Remember it and drop the key from the URL
+      res.setHeader('Set-Cookie', 'admin=' + encodeURIComponent(ADMIN_KEY) + '; HttpOnly; Path=/; SameSite=Lax; Secure; Max-Age=31536000');
+      return res.redirect('/');
+    }
+    if (!isAdmin(req)) return loginPage(res, false);
+  }
+  res.send(renderDashboard({ mode: 'admin' }));
+});
+
+// Client portal — one group only, no way to reach the others
+app.get('/g/:token', (req, res) => {
+  const group = groupForToken(req.params.token);
+  if (!group) return res.status(404).send('<!DOCTYPE html><meta charset="utf-8"><body style="font-family:system-ui;background:#0b1424;color:#e2e8f0;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0"><div style="text-align:center"><div style="font-size:48px">🔗</div><h2>This link is not valid</h2><p style="opacity:.7">Ask for a new link.</p></div>');
+  res.send(renderDashboard({ mode: 'client', group, token: req.params.token }));
+});
+
+function renderDashboard(opts) {
+  const mode  = opts.mode || 'admin';
+  const group = opts.group || '';
+  const apiBase = mode === 'client' ? '/g/' + opts.token : '';
+  const boot = '<script>'
+    + 'window.__MODE='  + JSON.stringify(mode)  + ';'
+    + 'window.__GROUP=' + JSON.stringify(group) + ';'
+    + 'window.__API='   + JSON.stringify(apiBase) + ';'
+    + 'window.__AUTH='  + (authEnabled() ? 'true' : 'false') + ';'
+    + '</script>';
+  const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -467,7 +568,7 @@ app.get('/', (req, res) => {
     </div>
     
     <script>
-        const API = window.location.origin;
+        const API = window.location.origin + (window.__API || '');
         let apps = [], groups = [], editIdx = -1, filter = 'all';
 
         // ─── City → Postal Code auto-fill ──────────────────────────────
@@ -587,7 +688,7 @@ app.get('/', (req, res) => {
             document.getElementById('with-photos').textContent = apps.filter(a => a.photo).length;
             
             // FIX: Only update modal group dropdown if modal is not open (avoid disrupting editing)
-            if (!isModalOpen) {
+            if (!isModalOpen && !IS_CLIENT) {
                 const fg = document.getElementById('fg');
                 const prevGroup = fg.value;
                 fg.innerHTML = '<option value="">No Group</option>';
@@ -609,7 +710,9 @@ app.get('/', (req, res) => {
                 const isHid = hiddenGroups.has(g);
                 badge.className = 'group-badge' + (filter === g ? ' active' : '');
                 if (isHid) badge.style.opacity = '0.5';
-                badge.innerHTML = \`\${g} (\${cnt})\${isHid?' 🚫':''} <span style="cursor:pointer;opacity:0;transition:opacity .2s;font-size:11px;margin-left:4px" class="ghide" onclick="event.stopPropagation(); toggleGroupHidden('\${g}')" title="\${isHid?'Show':'Hide from extension'}">\${isHid?'👁️':'🙈'}</span> <span class="group-delete" onclick="event.stopPropagation(); deleteGroup('\${g}')">×</span>\`;
+                const link = groupLinks[g];
+                const linkHtml = link ? \` <span style="cursor:pointer;font-size:12px;margin-left:4px" class="glink" onclick="event.stopPropagation(); copyGroupLink('\${g.replace(/'/g, "\\'")}')" title="Copy this group's client link">🔗</span>\` : '';
+                badge.innerHTML = \`\${g} (\${cnt})\${isHid?' 🚫':''}\${linkHtml} <span style="cursor:pointer;opacity:0;transition:opacity .2s;font-size:11px;margin-left:4px" class="ghide" onclick="event.stopPropagation(); toggleGroupHidden('\${g}')" title="\${isHid?'Show':'Hide from extension'}">\${isHid?'👁️':'🙈'}</span> <span class="group-delete" onclick="event.stopPropagation(); deleteGroup('\${g}')">×</span>\`;
                 badge.onclick = () => { filter = g; updateUI(); };
                 badge.onmouseenter = () => { const h = badge.querySelector('.ghide'); if(h) h.style.opacity='1'; };
                 badge.onmouseleave = () => { const h = badge.querySelector('.ghide'); if(h) h.style.opacity='0'; };
@@ -750,7 +853,7 @@ app.get('/', (req, res) => {
             editIdx = -1;
             currentPhotoBase64 = null;
             document.getElementById('modal-title').textContent = 'Add New Applicant';
-            document.getElementById('fg').value = filter === 'all' ? '' : filter;
+            document.getElementById('fg').value = IS_CLIENT ? CLIENT_GROUP : (filter === 'all' ? '' : filter);
             ['ff','fl','fp','fd','fb','fi','fa1','fc','fpc','fph','ffam'].forEach(id => document.getElementById(id).value = '');
             // Default is ALWAYS Individual — most applicants are, so it is never re-selected by hand
             document.getElementById('ftype-indv').checked = true;
@@ -1068,6 +1171,62 @@ app.get('/', (req, res) => {
         // ── Group hide/show ──────────────────────────────────────────
         let hiddenGroups = new Set();
 
+        // ── CLIENT PORTAL / ADMIN ───────────────────────────────────────
+        const IS_CLIENT = window.__MODE === 'client';
+        const CLIENT_GROUP = window.__GROUP || '';
+        let groupLinks = {};
+
+        async function loadGroupLinks() {
+            if (IS_CLIENT) return;
+            try {
+                const r = await fetch(API + '/api/group-links');
+                const d = await r.json();
+                groupLinks = (d && d.links) || {};
+            } catch (_) { groupLinks = {}; }
+        }
+
+        async function copyGroupLink(g) {
+            const url = groupLinks[g];
+            if (!url) return;
+            try { await navigator.clipboard.writeText(url); toast('🔗 Link copied — send it to ' + g, 'success'); }
+            catch (_) { prompt('Copy this link:', url); }
+        }
+
+        function applyModeUI() {
+            // Warn the admin while the dashboard is unprotected
+            if (!IS_CLIENT && !window.__AUTH) {
+                const b = document.createElement('div');
+                b.style.cssText = 'background:#7f1d1d;color:#fecaca;padding:12px 18px;font-size:13px;font-weight:600;font-family:system-ui;text-align:center;border-bottom:1px solid #b91c1c';
+                b.innerHTML = '⚠️ This dashboard is open to anyone with the URL. In Railway → Variables add <code style="background:#450a0a;padding:2px 6px;border-radius:4px">ADMIN_KEY</code> to protect it and to enable per-group client links.';
+                document.body.insertBefore(b, document.body.firstChild);
+            }
+            if (!IS_CLIENT) return;
+
+            // Client mode: one group, nothing else reachable
+            document.title = CLIENT_GROUP + ' — Applicants';
+            const h1 = document.querySelector('.header h1');
+            if (h1) h1.textContent = CLIENT_GROUP;
+            const sub = document.querySelector('.header h1 + small, .header small');
+            if (sub) sub.textContent = 'Add or edit the applicants for your group';
+
+            // Admin-only controls
+            const hide = sel => document.querySelectorAll(sel).forEach(el => el.style.display = 'none');
+            hide('#groups-filter');
+            document.querySelectorAll('button').forEach(btn => {
+                const t = (btn.textContent || '').trim();
+                if (/Delete All|Force Sync|Import/i.test(t)) btn.style.display = 'none';
+            });
+
+            // The group select is locked to this client's group
+            const fg = document.getElementById('fg');
+            if (fg) {
+                fg.innerHTML = '<option value="' + CLIENT_GROUP.replace(/"/g, '&quot;') + '">' + CLIENT_GROUP + '</option>';
+                fg.value = CLIENT_GROUP;
+                fg.disabled = true;
+                fg.style.opacity = '0.7';
+            }
+        }
+
         async function loadHiddenGroups() {
             try {
                 const r = await fetch(API + '/api/hidden-groups');
@@ -1135,6 +1294,8 @@ app.get('/', (req, res) => {
 
         document.addEventListener('DOMContentLoaded', async () => {
             await loadHiddenGroups();
+            await loadGroupLinks();
+            applyModeUI();
             loadData();
             // Highlight filled selects with white border
             document.addEventListener('change', e => {
@@ -1155,15 +1316,16 @@ app.get('/', (req, res) => {
         }, 10000);
     </script>
 </body>
-</html>`);
-});
+</html>`;
+  return html.replace('<head>', '<head>' + boot);
+}
 
 // Hidden groups management
 app.get('/api/hidden-groups', (req, res) => {
   res.json({ success: true, hidden: [...hiddenGroups] });
 });
 
-app.post('/api/hidden-groups', (req, res) => {
+app.post('/api/hidden-groups', requireAdmin, (req, res) => {
   const { action, group } = req.body || {};
   if (!group) return res.status(400).json({ success: false, error: 'group required' });
   if (action === 'hide') hiddenGroups.add(group);
@@ -1171,6 +1333,85 @@ app.post('/api/hidden-groups', (req, res) => {
   console.log(`Group "${group}" ${action === 'hide' ? 'HIDDEN' : 'SHOWN'} (hidden: ${[...hiddenGroups].join(', ')})`);
   res.json({ success: true, hidden: [...hiddenGroups] });
 });
+
+// Admin: the client link for every group (needs ADMIN_KEY to be set)
+app.get('/api/group-links', requireAdmin, (req, res) => {
+  if (!authEnabled()) return res.json({ enabled: false, links: {} });
+  const base = (req.headers['x-forwarded-proto'] || req.protocol) + '://' + req.get('host');
+  const links = {};
+  allGroupNames().forEach(g => { links[g] = base + '/g/' + groupToken(g); });
+  res.json({ enabled: true, links });
+});
+
+// ── CLIENT PORTAL API — every route is pinned to the token's group ────
+function clientScope(req, res, next) {
+  const group = groupForToken(req.params.token);
+  if (!group) return res.status(404).json({ error: 'invalid link' });
+  req.clientGroup = group;
+  next();
+}
+const inGroup = (a, g) => (a.group || '') === g;
+
+app.get('/g/:token/api/applicants', clientScope, (req, res) => {
+  const g = req.clientGroup;
+  res.json({
+    applicants: sharedData.applicants.filter(a => inGroup(a, g)),
+    groups: [g],
+    lastModified: sharedData.lastModified
+  });
+});
+
+// The client's dashboard talks to the same endpoints the admin one does,
+// so mirror them — but every applicant is forced into the client's group,
+// and nothing outside that group can be read, changed or deleted.
+app.post('/g/:token/api/applicants/sync', clientScope, (req, res) => {
+  const g = req.clientGroup;
+  const incoming = Array.isArray(req.body.applicants) ? req.body.applicants : [];
+  const pinned = incoming.map(a => ({ ...a, group: g }));
+
+  const serverMap = new Map(sharedData.applicants.map(a => [a.PassportNo, a]));
+  for (const a of pinned) {
+    if (!a.PassportNo) continue;
+    const existing = serverMap.get(a.PassportNo);
+    // A passport that already belongs to ANOTHER group is not this client's to edit
+    if (existing && !inGroup(existing, g)) continue;
+    const now = Date.now();
+    if (!existing) {
+      serverMap.set(a.PassportNo, { ...a, _updatedAt: a._updatedAt || now, _createdAt: now, _photoUpdatedAt: a.photo ? now : 0 });
+    } else if ((a._updatedAt || 0) >= (existing._updatedAt || 0)) {
+      const photoChanged = a.photo !== existing.photo;
+      serverMap.set(a.PassportNo, { ...a, _updatedAt: a._updatedAt || now, _createdAt: existing._createdAt || now, _photoUpdatedAt: photoChanged ? now : (existing._photoUpdatedAt || 0) });
+    }
+  }
+  sharedData.applicants = Array.from(serverMap.values());
+  if (!sharedData.groups.includes(g)) sharedData.groups.push(g);
+  sharedData.lastModified = new Date().toISOString();
+
+  res.json({
+    success: true,
+    data: { applicants: sharedData.applicants.filter(a => inGroup(a, g)), groups: [g] },
+    stats: { totalApplicants: sharedData.applicants.filter(a => inGroup(a, g)).length, totalGroups: 1 }
+  });
+});
+
+app.delete('/g/:token/api/applicants/:passportNo', clientScope, (req, res) => {
+  const g = req.clientGroup;
+  const pp = decodeURIComponent(req.params.passportNo);
+  const target = sharedData.applicants.find(a => a.PassportNo === pp);
+  if (!target || !inGroup(target, g)) return res.status(404).json({ error: 'not in your group' });
+  sharedData._deletedSince = sharedData._deletedSince || [];
+  sharedData._deletedSince.push({ passportNo: pp, ts: Date.now() });
+  sharedData.applicants = sharedData.applicants.filter(a => a.PassportNo !== pp);
+  sharedData.lastModified = new Date().toISOString();
+  res.json({ success: true, data: { applicants: sharedData.applicants.filter(a => inGroup(a, g)), groups: [g] } });
+});
+
+// Admin-only features the shared dashboard JS may still call: make them inert
+app.get('/g/:token/api/hidden-groups', clientScope, (req, res) => res.json({ hidden: [] }));
+app.post('/g/:token/api/hidden-groups', clientScope, (req, res) => res.status(403).json({ error: 'not available' }));
+app.delete('/g/:token/api/applicants/group/:groupName', clientScope, (req, res) => res.status(403).json({ error: 'not available' }));
+app.delete('/g/:token/api/applicants', clientScope, (req, res) => res.status(403).json({ error: 'not available' }));
+app.post('/g/:token/api/force-sync', clientScope, (req, res) => res.json({ success: true }));
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', applicants: sharedData.applicants.length, groups: sharedData.groups.length });
@@ -1181,7 +1422,7 @@ app.get('/api/applicants', (req, res) => {
   // Dashboard passes ?all=1 to see everything (including hidden groups).
   // Extensions don't pass this flag, so they get filtered data.
   // Extensions pass ?lite=1 for auto-sync — strips photos to save bandwidth.
-  const isAll = req.query.all === '1';
+  const isAll = req.query.all === '1' && isAdmin(req);
   const isLite = req.query.lite === '1';
 
   let data;
@@ -1349,7 +1590,7 @@ app.post('/api/applicants/sync', (req, res) => {
 });
 
 // FIX: Atomic group delete — safe, doesn't require client to send full applicant list
-app.delete('/api/applicants/group/:groupName', (req, res) => {
+app.delete('/api/applicants/group/:groupName', requireAdmin, (req, res) => {
   const groupName = decodeURIComponent(req.params.groupName);
   const now = Date.now();
   // Track deleted passports for delta sync
@@ -1364,7 +1605,7 @@ app.delete('/api/applicants/group/:groupName', (req, res) => {
   res.json({ success: true, data: sharedData });
 });
 
-app.delete('/api/applicants/:passportNo', (req, res) => {
+app.delete('/api/applicants/:passportNo', requireAdmin, (req, res) => {
   const passportNo = decodeURIComponent(req.params.passportNo);
   sharedData._deletedSince = sharedData._deletedSince || [];
   sharedData._deletedSince.push({ passportNo, ts: Date.now() });
@@ -1375,7 +1616,7 @@ app.delete('/api/applicants/:passportNo', (req, res) => {
   res.json({ success: true, data: sharedData });
 });
 
-app.delete('/api/applicants', (req, res) => {
+app.delete('/api/applicants', requireAdmin, (req, res) => {
   const now = Date.now();
   sharedData.applicants.forEach(a => {
     if (a.PassportNo) sharedData._deletedSince.push({ passportNo: a.PassportNo, ts: now });
@@ -1391,7 +1632,7 @@ app.delete('/api/applicants', (req, res) => {
 });
 
 // FIX: Force sync endpoint — sets forceSyncTimestamp so polling extensions re-pull
-app.post('/api/force-sync', (req, res) => {
+app.post('/api/force-sync', requireAdmin, (req, res) => {
   sharedData.forceSyncTimestamp = Date.now();
   console.log('📢 Force sync triggered at', new Date().toISOString());
   res.json({ success: true, timestamp: sharedData.forceSyncTimestamp });
