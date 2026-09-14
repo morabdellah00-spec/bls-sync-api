@@ -393,6 +393,34 @@ function renderDashboard(opts) {
         ::-webkit-scrollbar-track { background: #0b1424; }
         ::-webkit-scrollbar-thumb { background: linear-gradient(135deg, #10b981 0%, #0ea5a3 100%); border-radius: 5px; }
         ::-webkit-scrollbar-thumb:hover { background: #10b981; }
+        /* ── MOBILE (phones open the group link here) ─────────────── */
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .header { flex-direction: column; align-items: flex-start; gap: 14px; padding: 18px; }
+            .header-right { width: 100%; }
+            .header-left h1 { font-size: 21px; }
+            .card { padding: 16px 12px; overflow-x: auto; }
+            .section-title { font-size: 16px; }
+            /* Toolbar: search full width, buttons share the row */
+            .toolbar { gap: 8px; }
+            .search-box { flex: 1 1 100%; min-width: 0; }
+            .toolbar .btn { flex: 1 1 auto; justify-content: center; padding: 12px 10px; font-size: 13px; }
+            /* Table scrolls sideways instead of crushing */
+            table { min-width: 620px; }
+            tbody td, thead th { padding: 10px; font-size: 13px; }
+            /* Modal fills the screen and stacks photo above fields */
+            .modal { align-items: flex-start; padding: 0; }
+            .modal-content { width: 100%; max-width: 100% !important; min-height: 100vh; border-radius: 0; }
+            .modal-header { border-radius: 0; padding: 18px 20px; }
+            .modal-header h2 { font-size: 19px; }
+            .modal-body { grid-template-columns: 1fr !important; gap: 16px !important; padding: 18px 18px 8px !important; }
+            .modal-body > div { grid-template-columns: 1fr !important; }
+            .modal-footer { flex-direction: column-reverse; gap: 10px; padding: 16px 18px; }
+            .modal-footer .btn { width: 100%; justify-content: center; }
+            .stats { grid-template-columns: 1fr; gap: 12px; }
+            .stat-content h3 { font-size: 26px; }
+            #export-dd { position: fixed !important; left: 10px !important; right: 10px !important; }
+        }
     </style>
 </head>
 <body>
@@ -1217,7 +1245,7 @@ function renderDashboard(opts) {
             hide('#groups-filter');
             document.querySelectorAll('button').forEach(btn => {
                 const t = (btn.textContent || '').trim();
-                if (/Delete All|Force Sync|Import/i.test(t)) btn.style.display = 'none';
+                if (/Delete All|Force Sync/i.test(t)) btn.style.display = 'none';
             });
 
             // The group select is locked to this client's group
@@ -1269,7 +1297,7 @@ function renderDashboard(opts) {
                         if (!d.applicants || !Array.isArray(d.applicants)) throw new Error('Invalid format');
                         // FIX: tag imported applicants with _updatedAt if missing
                         const now = Date.now();
-                        const incoming = d.applicants.map(a => ({ ...a, _updatedAt: a._updatedAt || now }));
+                        const incoming = d.applicants.map(a => ({ ...a, group: IS_CLIENT ? CLIENT_GROUP : a.group, _updatedAt: a._updatedAt || now }));
                         const existingPassports = new Set(apps.map(a => a.PassportNo));
                         const newApps = incoming.filter(a => !existingPassports.has(a.PassportNo));
                         apps.push(...newApps);
