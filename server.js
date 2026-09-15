@@ -1439,6 +1439,17 @@ function renderDashboard(opts) {
             try {
                 const r = await fetch(API + '/api/autofill/state');
                 afState = await r.json();
+                // Restore the armed order after a page refresh: afQueue is in-memory
+                // and resets to empty on reload, but the server is still armed. Load
+                // it back ONCE so the chips + 🎯 badges reappear. Only on the first
+                // poll, so it never fights the user's live edits afterwards.
+                if (!window.__afRestored) {
+                    window.__afRestored = true;
+                    if (afState.active && Array.isArray(afState.order) && afState.order.length && !afQueue.length) {
+                        afQueue = afState.order.map(o => o.passport);
+                        filterApplicants();   // repaint the 🎯 #n badges in the table
+                    }
+                }
                 const el = document.getElementById('af-status');
                 if (el) {
                     if (afState.active) {
