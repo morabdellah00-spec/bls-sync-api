@@ -484,7 +484,20 @@ function renderDashboard(opts) {
             </div>
             
             <div class="groups-filter" id="groups-filter"></div>
-            
+
+            <div id="af-panel" style="display:none;margin:0 0 20px;padding:16px 18px;border-radius:14px;background:linear-gradient(135deg,#1a1330,#0f1b2b);border:1px solid rgba(245,158,11,.35)">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+                    <div style="font-weight:800;font-size:15px;color:#fbbf24">🎯 Auto-fill order <span id="af-count" style="opacity:.7;font-weight:600"></span></div>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                        <span id="af-status" style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;background:rgba(255,255,255,.06);color:#94a3b8">idle</span>
+                        <button class="btn btn-warning" style="padding:8px 16px;font-size:13px" onclick="armQueue()">▶ Arm</button>
+                        <button class="btn btn-danger" style="padding:8px 16px;font-size:13px" onclick="disarmQueue()">■ Disarm</button>
+                    </div>
+                </div>
+                <div id="af-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+                <div style="font-size:11px;opacity:.55;margin-top:8px">Pick applicants with 🎯 in order. Arm, then the browsers that win slots fill them 1, 2, 3… Booked (PAYMENT) applicants are skipped automatically.</div>
+            </div>
+
             <table>
                 <thead>
                     <tr>
@@ -785,12 +798,13 @@ function renderDashboard(opts) {
                 const indent = o.famKey ? 'padding-left:26px;' : '';
                 return \`<tr\${cls}\${style}>
                     <td style="\${indent}">\${a.photo ? \`<img class="photo-thumb" src="\${a.photo}">\` : '<div class="no-photo">👤</div>'}</td>
-                    <td><strong>\${a.FirstName || ''} \${a.LastName || ''}</strong></td>
+                    <td><strong>\${a.FirstName || ''} \${a.LastName || ''}</strong>\${String(a.status||'').toUpperCase()==='PAYMENT' ? ' <span style="display:inline-block;background:#16a34a;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;letter-spacing:.5px;vertical-align:middle">PAYMENT</span>' : ''}</td>
                     <td>\${a.PassportNo || ''}</td>
                     <td>\${a.DateOfBirth || '-'}</td>
                     <td>\${a.PlaceOfBirth || '-'}\${(a.City || a.PostalCode) ? \`<br><small style="opacity:.65">🏠 \${[a.City, a.PostalCode].filter(Boolean).join(', ')}</small>\` : ''}</td>
                     <td>\${a.group ? '<span class="group-badge">' + a.group + '</span>' : '-'}\${String(a.familyName || '').trim() ? '<br><small style="opacity:.8">👨‍👩‍👧 ' + a.familyName + '</small>' : ''}</td>
                     <td class="actions">
+                        \${IS_CLIENT ? '' : afToggleBtn(a)}
                         <button class="icon-btn" onclick="edit(\${idx})">✏️ Edit</button>
                         <button class="icon-btn" onclick="del(\${idx})">🗑️ Delete</button>
                     </td>
@@ -1323,11 +1337,99 @@ function renderDashboard(opts) {
             setTimeout(() => t.remove(), 3000);
         }
 
+        // ── ORDERED AUTO-FILL QUEUE (admin only) ────────────────────────
+        let afQueue = [];          // passports, in the order the browsers will use
+        let afState = null;        // last /state response
+        let afPollTimer = null;
+
+        function afToggleBtn(a) {
+            const qi = afQueue.indexOf(a.PassportNo);
+            const on = qi >= 0;
+            return '<button class="icon-btn af-toggle" data-pp="' + encodeURIComponent(a.PassportNo) + '" style="' +
+                   (on ? 'background:#f59e0b;color:#111;font-weight:800' : '') + '" title="Add to auto-fill order">' +
+                   (on ? ('🎯 #' + (qi + 1)) : '🎯') + '</button>';
+        }
+
+        function toggleQueue(pp) {
+            const i = afQueue.indexOf(pp);
+            if (i >= 0) afQueue.splice(i, 1); else afQueue.push(pp);
+            renderQueue();
+            filterApplicants();   // refresh the 🎯 #n badges in the table
+        }
+
+        document.addEventListener('click', (e) => {
+            const t = e.target.closest('.af-toggle, .af-remove');
+            if (!t) return;
+            e.preventDefault(); e.stopPropagation();
+            toggleQueue(decodeURIComponent(t.getAttribute('data-pp')));
+        });
+
+        function nameFor(pp) {
+            const a = apps.find(x => x.PassportNo === pp);
+            return a ? ((a.FirstName || '') + ' ' + (a.LastName || '')).trim() || pp : pp;
+        }
+
+        function renderQueue() {
+            const panel = document.getElementById('af-panel');
+            if (IS_CLIENT) { if (panel) panel.style.display = 'none'; return; }
+            if (panel) panel.style.display = afQueue.length ? 'block' : 'none';
+            document.getElementById('af-count').textContent = afQueue.length ? '(' + afQueue.length + ')' : '';
+            const list = document.getElementById('af-list');
+            if (!list) return;
+            const claimByPp = {};
+            if (afState && afState.order) afState.order.forEach(r => claimByPp[r.passport] = r);
+            list.innerHTML = afQueue.map((pp, i) => {
+                const r = claimByPp[pp] || {};
+                const isBooked = r.booked || String((apps.find(x=>x.PassportNo===pp)||{}).status||'').toUpperCase()==='PAYMENT';
+                const claimed = r.claimedBy;
+                const bg = isBooked ? '#16a34a' : claimed ? '#3b82f6' : 'rgba(245,158,11,.18)';
+                const col = (isBooked || claimed) ? '#fff' : '#fbbf24';
+                const tag = isBooked ? ' ✅ booked' : claimed ? ' 🔒 taken' : '';
+                return '<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;background:' + bg + ';color:' + col + ';font-size:13px;font-weight:700;border:1px solid rgba(255,255,255,.12)">' +
+                       '<b>#' + (i + 1) + '</b> ' + nameFor(pp) + tag +
+                       '<span class="af-remove" data-pp="' + encodeURIComponent(pp) + '" style="cursor:pointer;opacity:.7;margin-left:2px">✕</span></span>';
+            }).join('');
+        }
+
+        async function armQueue() {
+            if (!afQueue.length) { toast('Pick applicants with 🎯 first', 'error'); return; }
+            try {
+                const r = await fetch(API + '/api/autofill/arm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ order: afQueue, minutes: 45 }) });
+                if (!r.ok) throw new Error();
+                toast('🎯 Armed ' + afQueue.length + ' applicants — browsers will fill them in order', 'success');
+                pollAfState();
+            } catch (_) { toast('Arm failed', 'error'); }
+        }
+        async function disarmQueue() {
+            try { await fetch(API + '/api/autofill/disarm', { method: 'POST' }); toast('Auto-fill disarmed', 'success'); pollAfState(); } catch (_) {}
+        }
+
+        async function pollAfState() {
+            if (IS_CLIENT) return;
+            try {
+                const r = await fetch(API + '/api/autofill/state');
+                afState = await r.json();
+                const el = document.getElementById('af-status');
+                if (el) {
+                    if (afState.active) {
+                        const claimed = afState.order.filter(o => o.claimedBy || o.booked).length;
+                        const left = Math.max(0, Math.round((afState.expiresAt - Date.now()) / 60000));
+                        el.textContent = '🟢 armed · ' + claimed + '/' + afState.order.length + ' done · ' + left + 'm left';
+                        el.style.background = 'rgba(34,197,94,.18)'; el.style.color = '#4ade80';
+                    } else {
+                        el.textContent = 'idle'; el.style.background = 'rgba(255,255,255,.06)'; el.style.color = '#94a3b8';
+                    }
+                }
+                renderQueue();
+            } catch (_) {}
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             await loadHiddenGroups();
             await loadGroupLinks();
             applyModeUI();
             loadData();
+            if (!IS_CLIENT) { pollAfState(); afPollTimer = setInterval(pollAfState, 4000); }
             // Highlight filled selects with white border
             document.addEventListener('change', e => {
                 if (e.target.tagName === 'SELECT' && e.target.closest('.form-group')) {
@@ -1443,6 +1545,86 @@ app.post('/g/:token/api/hidden-groups', clientScope, (req, res) => res.status(40
 app.delete('/g/:token/api/applicants/group/:groupName', clientScope, (req, res) => res.status(403).json({ error: 'not available' }));
 app.delete('/g/:token/api/applicants', clientScope, (req, res) => res.status(403).json({ error: 'not available' }));
 app.post('/g/:token/api/force-sync', clientScope, (req, res) => res.json({ success: true }));
+
+// ── ORDERED AUTO-FILL QUEUE ──────────────────────────────────────────
+// The admin arms an ordered list of applicants. When browsers win slots and
+// land on ApplicantSelection they each claim the NEXT one not already booked
+// (status PAYMENT) or claimed — first arrival gets #1. A booked applicant is
+// skipped, so a teammate on the old extension who books someone (that person
+// reaching PAYMENT) takes them out of the running automatically.
+// State is in memory: a session, not durable — arming again resets it.
+let autofill = { armed: false, order: [], claims: {}, armedAt: 0, expiresAt: 0 };
+
+function booked(pp) {
+  const a = sharedData.applicants.find(x => x.PassportNo === pp);
+  return !!(a && String(a.status || '').toUpperCase() === 'PAYMENT');
+}
+function autofillActive() {
+  return autofill.armed && Date.now() < autofill.expiresAt;
+}
+function applicantByPassport(pp) {
+  return sharedData.applicants.find(x => x.PassportNo === pp) || null;
+}
+
+// Admin arms the queue with an ordered list of passports
+app.post('/api/autofill/arm', requireAdmin, (req, res) => {
+  const order = Array.isArray(req.body.order) ? req.body.order.filter(Boolean) : [];
+  const minutes = Math.min(Math.max(parseInt(req.body.minutes) || 45, 1), 240);
+  autofill = { armed: order.length > 0, order, claims: {}, armedAt: Date.now(), expiresAt: Date.now() + minutes * 60000 };
+  console.log(`🎯 Auto-fill ARMED: ${order.length} applicants, ${minutes} min`);
+  res.json({ success: true, armed: autofill.armed, count: order.length, expiresAt: autofill.expiresAt });
+});
+
+app.post('/api/autofill/disarm', requireAdmin, (req, res) => {
+  autofill.armed = false;
+  console.log('🛑 Auto-fill DISARMED');
+  res.json({ success: true });
+});
+
+// State — the dashboard polls this to show which slot each applicant holds
+app.get('/api/autofill/state', (req, res) => {
+  const active = autofillActive();
+  const rows = autofill.order.map((pp, i) => {
+    const c = autofill.claims[pp];
+    return {
+      passport: pp,
+      index: i + 1,
+      booked: booked(pp),
+      claimedBy: c ? c.browserId : null,
+      claimedAt: c ? c.ts : null
+    };
+  });
+  res.json({ armed: autofill.armed, active, expiresAt: autofill.expiresAt, order: rows });
+});
+
+// A browser on ApplicantSelection claims its applicant. Idempotent: the same
+// browserId always gets the same one back, so an F5 never skips ahead.
+app.post('/api/autofill/claim', (req, res) => {
+  if (!autofillActive()) return res.json({ armed: false });
+  const browserId = String(req.body.browserId || '').trim();
+  if (!browserId) return res.status(400).json({ error: 'browserId required' });
+
+  // Already holds one? Return it (unless it got booked meanwhile → move on).
+  for (const pp of autofill.order) {
+    const c = autofill.claims[pp];
+    if (c && c.browserId === browserId && !booked(pp)) {
+      return res.json({ armed: true, passport: pp, index: autofill.order.indexOf(pp) + 1, applicant: applicantByPassport(pp) });
+    }
+  }
+
+  // Otherwise take the first free, unbooked one in order.
+  for (const pp of autofill.order) {
+    if (booked(pp)) continue;
+    const c = autofill.claims[pp];
+    if (c && c.browserId !== browserId) continue;      // held by someone else
+    autofill.claims[pp] = { browserId, ts: Date.now() };
+    console.log(`  🎯 claim: ${browserId.slice(0,8)} → #${autofill.order.indexOf(pp)+1} ${pp}`);
+    return res.json({ armed: true, passport: pp, index: autofill.order.indexOf(pp) + 1, applicant: applicantByPassport(pp) });
+  }
+
+  // Nothing left
+  res.json({ armed: true, passport: null, exhausted: true });
+});
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', applicants: sharedData.applicants.length, groups: sharedData.groups.length });
