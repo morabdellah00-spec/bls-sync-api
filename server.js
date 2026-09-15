@@ -485,6 +485,15 @@ function renderDashboard(opts) {
             
             <div class="groups-filter" id="groups-filter"></div>
 
+            <!-- BOOKED (PAYMENT) — everyone who reached payment, armed or not -->
+            <div id="booked-panel" style="display:none;margin:0 0 16px;padding:14px 18px;border-radius:14px;background:linear-gradient(135deg,#052e1a,#0f1b2b);border:1px solid rgba(22,163,74,.4)">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                    <span style="font-weight:800;font-size:15px;color:#4ade80">✅ Booked</span>
+                    <span id="booked-count" style="font-size:12px;font-weight:700;padding:2px 10px;border-radius:20px;background:rgba(22,163,74,.2);color:#4ade80"></span>
+                </div>
+                <div id="booked-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+            </div>
+
             <div id="af-panel" style="display:none;margin:0 0 20px;padding:16px 18px;border-radius:14px;background:linear-gradient(135deg,#1a1330,#0f1b2b);border:1px solid rgba(245,158,11,.35)">
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
                     <div style="font-weight:800;font-size:15px;color:#fbbf24">🎯 Auto-fill order <span id="af-count" style="opacity:.7;font-weight:600"></span></div>
@@ -763,7 +772,28 @@ function renderDashboard(opts) {
                 gf.appendChild(badge);
             });
             
+            renderBooked();
             filterApplicants();
+        }
+
+        function renderBooked() {
+            const booked = apps.filter(a => String(a.status||'').toUpperCase() === 'PAYMENT');
+            const panel = document.getElementById('booked-panel');
+            if (!panel) return;
+            panel.style.display = booked.length ? 'block' : 'none';
+            const cnt = document.getElementById('booked-count');
+            if (cnt) cnt.textContent = booked.length + (booked.length === 1 ? ' appointment' : ' appointments');
+            const list = document.getElementById('booked-list');
+            if (!list) return;
+            list.innerHTML = booked.map(a => {
+                const name = ((a.FirstName||'') + ' ' + (a.LastName||'')).trim() || a.PassportNo || '?';
+                const photo = a.photo
+                    ? '<img src="' + a.photo + '" style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex:0 0 auto">'
+                    : '<span style="width:26px;height:26px;border-radius:50%;background:#123;display:inline-flex;align-items:center;justify-content:center;font-size:13px;flex:0 0 auto">👤</span>';
+                const grp = a.group ? '<span style="opacity:.65;font-size:11px">· ' + a.group + '</span>' : '';
+                return '<span style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px 6px 6px;border-radius:22px;background:rgba(22,163,74,.16);border:1px solid rgba(22,163,74,.35);color:#dcfce7;font-size:13px;font-weight:700">' +
+                       photo + '<span>' + name + ' <span style="opacity:.7;font-weight:600">' + (a.PassportNo||'') + '</span> ' + grp + '</span></span>';
+            }).join('');
         }
 
         function filterApplicants() {
