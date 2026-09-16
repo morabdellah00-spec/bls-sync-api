@@ -17,6 +17,48 @@ let sharedData = {
 // Hidden groups — extensions won't receive applicants from these groups
 let hiddenGroups = new Set();
 
+// ── PERSISTENCE ──────────────────────────────────────────────────────
+// Railway containers keep nothing on restart. If a VOLUME is mounted (set
+// PERSIST_DIR to its mount path, e.g. /data), the whole dataset is written
+// there and reloaded on boot, so deploys and restarts stop wiping data.
+// With no volume the writes fail quietly and the server runs in-memory as
+// before — safe either way.
+const fs = require('fs');
+const path = require('path');
+const PERSIST_DIR = (process.env.PERSIST_DIR || '/data').trim();
+const PERSIST_FILE = path.join(PERSIST_DIR, 'bls_state.json');
+let persistOK = false;
+
+function loadState() {
+  try {
+    if (!fs.existsSync(PERSIST_FILE)) { console.log('💾 No saved state at', PERSIST_FILE, '(fresh start)'); return; }
+    const raw = JSON.parse(fs.readFileSync(PERSIST_FILE, 'utf8'));
+    if (raw && raw.sharedData && Array.isArray(raw.sharedData.applicants)) {
+      sharedData = raw.sharedData;
+      if (!Array.isArray(sharedData._deletedSince)) sharedData._deletedSince = [];
+    }
+    if (Array.isArray(raw.hiddenGroups)) hiddenGroups = new Set(raw.hiddenGroups);
+    console.log('💾 Loaded state:', (sharedData.applicants||[]).length, 'applicants from', PERSIST_FILE);
+  } catch (e) { console.warn('💾 loadState failed (starting empty):', e.message); }
+}
+
+let lastSavedSig = '';
+function stateSig() { return (sharedData.lastModified || '') + '|' + (sharedData.applicants || []).length + '|' + [...hiddenGroups].sort().join(','); }
+function saveState() {
+  try {
+    fs.mkdirSync(PERSIST_DIR, { recursive: true });
+    fs.writeFileSync(PERSIST_FILE, JSON.stringify({ sharedData, hiddenGroups: [...hiddenGroups] }));
+    if (!persistOK) { persistOK = true; console.log('💾 Persistence ACTIVE →', PERSIST_FILE); }
+  } catch (e) { if (persistOK || !saveState._warned) { saveState._warned = true; console.warn('💾 saveState failed (no volume?):', e.message); } }
+}
+function maybeSave() { const sig = stateSig(); if (sig !== lastSavedSig) { lastSavedSig = sig; saveState(); } }
+
+loadState();
+lastSavedSig = stateSig();
+setInterval(maybeSave, 3000);                    // flush changes every 3s
+process.on('SIGTERM', () => { console.log('💾 SIGTERM — saving before exit'); saveState(); process.exit(0); });
+process.on('SIGINT',  () => { saveState(); process.exit(0); });
+
 let currentCommand = {
   location: '',
   visaType: '',
@@ -1613,6 +1655,11 @@ app.post('/g/:token/api/force-sync', clientScope, (req, res) => res.json({ succe
 // reaching PAYMENT) takes them out of the running automatically.
 // State is in memory: a session, not durable — arming again resets it.
 let autofill = { armed: false, order: [], claims: {}, armedAt: 0, expiresAt: 0 };
+// BLS holds a won slot ~5 min. If payment doesn't come, the slot is lost and
+// the applicant must be free to claim again. A claim older than this and not
+// booked is treated as released.
+const CLAIM_TTL = 5 * 60 * 1000;
+function claimFresh(c) { return !!c && (Date.now() - c.ts) < CLAIM_TTL; }
 
 function booked(pp) {
   const a = sharedData.applicants.find(x => x.PassportNo === pp);
@@ -1645,12 +1692,13 @@ app.get('/api/autofill/state', (req, res) => {
   const active = autofillActive();
   const rows = autofill.order.map((pp, i) => {
     const c = autofill.claims[pp];
+    const fresh = claimFresh(c);
     return {
       passport: pp,
       index: i + 1,
       booked: booked(pp),
-      claimedBy: c ? c.browserId : null,
-      claimedAt: c ? c.ts : null
+      claimedBy: fresh ? c.browserId : null,
+      claimedAt: fresh ? c.ts : null
     };
   });
   res.json({ armed: autofill.armed, active, expiresAt: autofill.expiresAt, order: rows });
@@ -1663,19 +1711,21 @@ app.post('/api/autofill/claim', (req, res) => {
   const browserId = String(req.body.browserId || '').trim();
   if (!browserId) return res.status(400).json({ error: 'browserId required' });
 
-  // Already holds one? Return it (unless it got booked meanwhile → move on).
+  // Already holds a FRESH claim? Return it. (A stale one — >5 min, slot lost —
+  // is not reused; we fall through and re-claim, restarting its 5-min window.)
   for (const pp of autofill.order) {
     const c = autofill.claims[pp];
-    if (c && c.browserId === browserId && !booked(pp)) {
+    if (c && c.browserId === browserId && claimFresh(c) && !booked(pp)) {
       return res.json({ armed: true, passport: pp, index: autofill.order.indexOf(pp) + 1, applicant: applicantByPassport(pp) });
     }
   }
 
-  // Otherwise take the first free, unbooked one in order.
+  // Take the first unbooked one that is free OR whose claim has gone stale
+  // (the previous holder lost the slot). Its 5-min window restarts now.
   for (const pp of autofill.order) {
     if (booked(pp)) continue;
     const c = autofill.claims[pp];
-    if (c && c.browserId !== browserId) continue;      // held by someone else
+    if (c && c.browserId !== browserId && claimFresh(c)) continue;   // still actively held
     autofill.claims[pp] = { browserId, ts: Date.now() };
     console.log(`  🎯 claim: ${browserId.slice(0,8)} → #${autofill.order.indexOf(pp)+1} ${pp}`);
     return res.json({ armed: true, passport: pp, index: autofill.order.indexOf(pp) + 1, applicant: applicantByPassport(pp) });
