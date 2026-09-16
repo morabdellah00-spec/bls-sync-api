@@ -776,6 +776,17 @@ function renderDashboard(opts) {
             filterApplicants();
         }
 
+        // In-progress = an armed applicant a browser has claimed but not yet
+        // booked. Derived live from afState, so it auto-clears on disarm/expiry.
+        // Purely a visual marker — it never locks anything; Edit/click still work.
+        function inProgressPassports() {
+            const set = {};
+            if (afState && Array.isArray(afState.order)) {
+                afState.order.forEach(o => { if (o.claimedBy && !o.booked) set[o.passport] = true; });
+            }
+            return set;
+        }
+
         function renderBooked() {
             const booked = apps.filter(a => String(a.status||'').toUpperCase() === 'PAYMENT');
             const panel = document.getElementById('booked-panel');
@@ -797,6 +808,7 @@ function renderDashboard(opts) {
         }
 
         function filterApplicants() {
+            const inProg = inProgressPassports();
             const q = document.getElementById('search').value.toLowerCase();
             let filtered = apps.filter(a => {
                 if (filter !== 'all' && a.group !== filter) return false;
@@ -828,7 +840,7 @@ function renderDashboard(opts) {
                 const indent = o.famKey ? 'padding-left:26px;' : '';
                 return \`<tr\${cls}\${style}>
                     <td style="\${indent}">\${a.photo ? \`<img class="photo-thumb" src="\${a.photo}">\` : '<div class="no-photo">👤</div>'}</td>
-                    <td><strong>\${a.FirstName || ''} \${a.LastName || ''}</strong>\${String(a.status||'').toUpperCase()==='PAYMENT' ? ' <span style="display:inline-block;background:#16a34a;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;letter-spacing:.5px;vertical-align:middle">PAYMENT</span>' : ''}</td>
+                    <td><strong>\${a.FirstName || ''} \${a.LastName || ''}</strong>\${String(a.status||'').toUpperCase()==='PAYMENT' ? ' <span style="display:inline-block;background:#16a34a;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;letter-spacing:.5px;vertical-align:middle">PAYMENT</span>' : (inProg[a.PassportNo] ? ' <span style="display:inline-block;background:#2563eb;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;letter-spacing:.4px;vertical-align:middle">IN PROGRESS</span>' : '')}</td>
                     <td>\${a.PassportNo || ''}</td>
                     <td>\${a.DateOfBirth || '-'}</td>
                     <td>\${a.PlaceOfBirth || '-'}\${(a.City || a.PostalCode) ? \`<br><small style="opacity:.65">🏠 \${[a.City, a.PostalCode].filter(Boolean).join(', ')}</small>\` : ''}</td>
@@ -1462,6 +1474,10 @@ function renderDashboard(opts) {
                     }
                 }
                 renderQueue();
+                // If the set of in-progress (claimed) applicants changed, repaint
+                // the table so the IN PROGRESS badges update without a full reload.
+                const sig = (afState.order || []).filter(o => o.claimedBy && !o.booked).map(o => o.passport).sort().join(',');
+                if (sig !== window.__afProgSig) { window.__afProgSig = sig; filterApplicants(); }
             } catch (_) {}
         }
 
