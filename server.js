@@ -781,7 +781,9 @@ function renderDashboard(opts) {
         // Purely a visual marker — it never locks anything; Edit/click still work.
         function inProgressPassports() {
             const set = {};
-            if (afState && Array.isArray(afState.order)) {
+            // Only while the queue is actively armed — so disarming or letting the
+            // arm expire clears the badges immediately.
+            if (afState && afState.active && Array.isArray(afState.order)) {
                 afState.order.forEach(o => { if (o.claimedBy && !o.booked) set[o.passport] = true; });
             }
             return set;
@@ -1476,7 +1478,7 @@ function renderDashboard(opts) {
                 renderQueue();
                 // If the set of in-progress (claimed) applicants changed, repaint
                 // the table so the IN PROGRESS badges update without a full reload.
-                const sig = (afState.order || []).filter(o => o.claimedBy && !o.booked).map(o => o.passport).sort().join(',');
+                const sig = (afState.active ? (afState.order || []).filter(o => o.claimedBy && !o.booked).map(o => o.passport) : []).sort().join(',');
                 if (sig !== window.__afProgSig) { window.__afProgSig = sig; filterApplicants(); }
             } catch (_) {}
         }
