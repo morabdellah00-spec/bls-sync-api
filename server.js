@@ -821,14 +821,19 @@ function renderDashboard(opts) {
         // In-progress = an armed applicant a browser has claimed but not yet
         // booked. Derived live from afState, so it auto-clears on disarm/expiry.
         // Purely a visual marker — it never locks anything; Edit/click still work.
-        function inProgressPassports() {
-            const set = {};
-            // Only while the queue is actively armed — so disarming or letting the
-            // arm expire clears the badges immediately.
-            if (afState && afState.active && Array.isArray(afState.order)) {
-                afState.order.forEach(o => { if (o.claimedBy && !o.booked) set[o.passport] = true; });
-            }
-            return set;
+        let inProgSet = {};   // passports currently being edited (manual OR auto)
+        function inProgressPassports() { return inProgSet; }
+        async function pollInProgress() {
+            if (IS_CLIENT) return;
+            try {
+                const r = await fetch(API + '/api/inprogress');
+                const d = await r.json();
+                const next = {};
+                (d.passports || []).forEach(pp => { next[pp] = true; });
+                const changed = JSON.stringify(Object.keys(next).sort()) !== JSON.stringify(Object.keys(inProgSet).sort());
+                inProgSet = next;
+                if (changed) filterApplicants();   // repaint IN PROGRESS badges
+            } catch (_) {}
         }
 
         function renderBooked() {
@@ -1518,10 +1523,6 @@ function renderDashboard(opts) {
                     }
                 }
                 renderQueue();
-                // If the set of in-progress (claimed) applicants changed, repaint
-                // the table so the IN PROGRESS badges update without a full reload.
-                const sig = (afState.active ? (afState.order || []).filter(o => o.claimedBy && !o.booked).map(o => o.passport) : []).sort().join(',');
-                if (sig !== window.__afProgSig) { window.__afProgSig = sig; filterApplicants(); }
             } catch (_) {}
         }
 
@@ -1530,7 +1531,7 @@ function renderDashboard(opts) {
             await loadGroupLinks();
             applyModeUI();
             loadData();
-            if (!IS_CLIENT) { pollAfState(); afPollTimer = setInterval(pollAfState, 4000); }
+            if (!IS_CLIENT) { pollAfState(); afPollTimer = setInterval(pollAfState, 4000); pollInProgress(); setInterval(pollInProgress, 4000); }
             // Highlight filled selects with white border
             document.addEventListener('change', e => {
                 if (e.target.tagName === 'SELECT' && e.target.closest('.form-group')) {
@@ -1660,6 +1661,10 @@ let autofill = { armed: false, order: [], claims: {}, armedAt: 0, expiresAt: 0 }
 // booked is treated as released.
 const CLAIM_TTL = 5 * 60 * 1000;
 function claimFresh(c) { return !!c && (Date.now() - c.ts) < CLAIM_TTL; }
+// General "someone is editing this applicant" marker — set by ANY browser
+// that starts filling an applicant (manual card-click OR auto-fill), keyed by
+// passport. Same 5-min TTL as claims, so a lost/abandoned edit clears itself.
+let inProgress = {};   // passport -> { browserId, ts }
 
 function booked(pp) {
   const a = sharedData.applicants.find(x => x.PassportNo === pp);
@@ -1685,6 +1690,32 @@ app.post('/api/autofill/disarm', requireAdmin, (req, res) => {
   autofill.armed = false;
   console.log('🛑 Auto-fill DISARMED');
   res.json({ success: true });
+});
+
+// A browser reports it is editing an applicant (manual or auto). Open — the
+// extension sends no credential. Kept for CLAIM_TTL, then it expires.
+app.post('/api/inprogress', (req, res) => {
+  const pp = String(req.body.passport || '').trim();
+  const browserId = String(req.body.browserId || '').trim();
+  if (!pp) return res.status(400).json({ error: 'passport required' });
+  inProgress[pp] = { browserId, ts: Date.now() };
+  res.json({ success: true });
+});
+
+// Every applicant currently being edited: manual marks + armed auto claims,
+// fresh (<5 min) and not yet booked. Panel + dashboard poll this.
+app.get('/api/inprogress', (req, res) => {
+  const set = new Set();
+  for (const pp in inProgress) {
+    if (claimFresh(inProgress[pp]) && !booked(pp)) set.add(pp);
+  }
+  if (autofillActive()) {
+    for (const pp of autofill.order) {
+      const c = autofill.claims[pp];
+      if (claimFresh(c) && !booked(pp)) set.add(pp);
+    }
+  }
+  res.json({ passports: [...set] });
 });
 
 // State — the dashboard polls this to show which slot each applicant holds
