@@ -146,6 +146,31 @@ function loginPage(res, bad) {
   + '<button>Sign in</button></form></body></html>');
 }
 
+function namePage(token, bad) {
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Name your group</title>'
+  + '<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b1424;font-family:system-ui;color:#e2e8f0}'
+  + '.card{background:#111c2e;padding:34px 38px;border-radius:16px;border:1px solid rgba(16,185,129,.25);box-shadow:0 20px 60px rgba(0,0,0,.5);min-width:340px;max-width:92vw}'
+  + 'h2{margin:0 0 6px;color:#10b981;font-size:22px}p{margin:0 0 18px;opacity:.75;font-size:13px;line-height:1.5}'
+  + 'input{width:100%;box-sizing:border-box;padding:13px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:#0b1424;color:#fff;font-size:15px;margin-bottom:12px}'
+  + 'input:focus{outline:none;border-color:#10b981}'
+  + 'button{width:100%;padding:13px;border:none;border-radius:10px;background:#10b981;color:#06251d;font-weight:800;font-size:15px;cursor:pointer}'
+  + 'button:disabled{opacity:.6;cursor:default}.bad{color:#f87171;font-size:13px;margin-bottom:10px}</style></head><body>'
+  + '<div class="card"><h2>Welcome</h2><p>Give your group a name to get started, then add your applicant details.</p>'
+  + (bad ? '<div class="bad">' + bad + '</div>' : '')
+  + '<input id="gname" placeholder="Group name (e.g. your family name)" autofocus autocomplete="off">'
+  + '<button id="go" onclick="submitName()">Continue</button></div>'
+  + '<script>'
+  + 'var TOKEN=' + JSON.stringify(token) + ';'
+  + 'var inp=document.getElementById("gname"),btn=document.getElementById("go");'
+  + 'inp.addEventListener("keydown",function(e){if(e.key==="Enter")submitName();});'
+  + 'function submitName(){var name=(inp.value||"").trim();if(!name){inp.focus();return;}'
+  + 'btn.disabled=true;btn.textContent="...";'
+  + 'fetch("/g/"+TOKEN+"/api/name",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:name})})'
+  + '.then(function(r){return r.json();}).then(function(d){if(d&&d.success){location.href="/g/"+TOKEN;}else{btn.disabled=false;btn.textContent="Continue";alert("Could not set the name, try again.");}})'
+  + '.catch(function(){btn.disabled=false;btn.textContent="Continue";alert("Network error, try again.");});}'
+  + '</script></body></html>';
+}
+
 // Admin dashboard
 app.get('/', (req, res) => {
   if (authEnabled()) {
@@ -166,7 +191,7 @@ app.get('/g/:token', (req, res) => {
   const group = groupForToken(token);
   if (group) return res.send(renderDashboard({ mode: 'client', group, token }));
   // A blank invite that has not been named yet → open in "name your group" mode.
-  if (invites[token]) return res.send(renderDashboard({ mode: 'client', group: '', token, needsName: true }));
+  if (invites[token]) return res.send(namePage(token));
   return res.status(404).send('<!DOCTYPE html><meta charset="utf-8"><body style="font-family:system-ui;background:#0b1424;color:#e2e8f0;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0"><div style="text-align:center"><div style="font-size:48px">🔗</div><h2>This link is not valid</h2><p style="opacity:.7">Ask for a new link.</p></div>');
 });
 
