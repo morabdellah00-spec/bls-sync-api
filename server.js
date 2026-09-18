@@ -889,12 +889,13 @@ function renderDashboard(opts) {
                 const indent = o.famKey ? 'padding-left:26px;' : '';
                 return \`<tr\${cls}\${style}>
                     <td style="\${indent}">\${a.photo ? \`<img class="photo-thumb" src="\${a.photo}">\` : '<div class="no-photo">👤</div>'}</td>
-                    <td><strong>\${a.FirstName || ''} \${a.LastName || ''}</strong>\${String(a.status||'').toUpperCase()==='PAYMENT' ? ' <span style="display:inline-block;background:#16a34a;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;letter-spacing:.5px;vertical-align:middle">PAYMENT</span>' : (inProg[a.PassportNo] ? ' <span style="display:inline-block;background:#2563eb;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;letter-spacing:.4px;vertical-align:middle">IN PROGRESS</span>' : '')}</td>
+                    <td><strong style="\${a.workOn ? 'color:#f59e0b' : ''}">\${a.workOn ? '🟠 ' : ''}\${a.FirstName || ''} \${a.LastName || ''}</strong>\${String(a.status||'').toUpperCase()==='PAYMENT' ? ' <span style="display:inline-block;background:#16a34a;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;letter-spacing:.5px;vertical-align:middle">PAYMENT</span>' : (inProg[a.PassportNo] ? ' <span style="display:inline-block;background:#2563eb;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;letter-spacing:.4px;vertical-align:middle">IN PROGRESS</span>' : '')}</td>
                     <td>\${a.PassportNo || ''}</td>
                     <td>\${a.DateOfBirth || '-'}</td>
                     <td>\${a.PlaceOfBirth || '-'}\${(a.City || a.PostalCode) ? \`<br><small style="opacity:.65">🏠 \${[a.City, a.PostalCode].filter(Boolean).join(', ')}</small>\` : ''}</td>
                     <td>\${a.group ? '<span class="group-badge">' + a.group + '</span>' : '-'}\${String(a.familyName || '').trim() ? '<br><small style="opacity:.8">👨‍👩‍👧 ' + a.familyName + '</small>' : ''}</td>
                     <td class="actions">
+                        \${IS_CLIENT ? '' : ('<button class="icon-btn work-toggle" data-pp="' + encodeURIComponent(a.PassportNo) + '" style="' + (a.workOn ? 'background:#f59e0b;color:#111;font-weight:800' : '') + '" title="Mark ready to work on — turns the name orange in the extension">🟠</button>')}
                         \${IS_CLIENT ? '' : afToggleBtn(a)}
                         <button class="icon-btn" onclick="edit(\${idx})">✏️ Edit</button>
                         <button class="icon-btn" onclick="del(\${idx})">🗑️ Delete</button>
@@ -1454,6 +1455,23 @@ function renderDashboard(opts) {
             e.preventDefault(); e.stopPropagation();
             toggleQueue(decodeURIComponent(t.getAttribute('data-pp')));
         });
+
+        // Manual "ready to work on" mark — turns the applicant's name orange in
+        // the extension (panel + myappointments). Not auto-fill; purely a flag.
+        document.addEventListener('click', (e) => {
+            const t = e.target.closest('.work-toggle');
+            if (!t) return;
+            e.preventDefault(); e.stopPropagation();
+            toggleWork(decodeURIComponent(t.getAttribute('data-pp')));
+        });
+        async function toggleWork(pp) {
+            const a = apps.find(x => x.PassportNo === pp);
+            if (!a) return;
+            a.workOn = !a.workOn;
+            a._updatedAt = Date.now();
+            filterApplicants();
+            try { await sync(); } catch (_) {}
+        }
 
         function nameFor(pp) {
             const a = apps.find(x => x.PassportNo === pp);
