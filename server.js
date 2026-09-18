@@ -17,6 +17,10 @@ let sharedData = {
 // Hidden groups — extensions won't receive applicants from these groups
 let hiddenGroups = new Set();
 
+// Blank group invites: token -> { groupName: null|string, createdAt }. The
+// client opens /g/<token>, names the group, then fills it. Persisted with state.
+let invites = {};
+
 // ── PERSISTENCE ──────────────────────────────────────────────────────
 // Railway containers keep nothing on restart. If a VOLUME is mounted (set
 // PERSIST_DIR to its mount path, e.g. /data), the whole dataset is written
@@ -38,16 +42,17 @@ function loadState() {
       if (!Array.isArray(sharedData._deletedSince)) sharedData._deletedSince = [];
     }
     if (Array.isArray(raw.hiddenGroups)) hiddenGroups = new Set(raw.hiddenGroups);
+    if (raw.invites && typeof raw.invites === 'object') invites = raw.invites;
     console.log('💾 Loaded state:', (sharedData.applicants||[]).length, 'applicants from', PERSIST_FILE);
   } catch (e) { console.warn('💾 loadState failed (starting empty):', e.message); }
 }
 
 let lastSavedSig = '';
-function stateSig() { return (sharedData.lastModified || '') + '|' + (sharedData.applicants || []).length + '|' + [...hiddenGroups].sort().join(','); }
+function stateSig() { return (sharedData.lastModified || '') + '|' + (sharedData.applicants || []).length + '|' + [...hiddenGroups].sort().join(',') + '|inv' + Object.keys(invites).length + Object.values(invites).map(i=>i.groupName||'').join(','); }
 function saveState() {
   try {
     fs.mkdirSync(PERSIST_DIR, { recursive: true });
-    fs.writeFileSync(PERSIST_FILE, JSON.stringify({ sharedData, hiddenGroups: [...hiddenGroups] }));
+    fs.writeFileSync(PERSIST_FILE, JSON.stringify({ sharedData, hiddenGroups: [...hiddenGroups], invites }));
     if (!persistOK) { persistOK = true; console.log('💾 Persistence ACTIVE →', PERSIST_FILE); }
   } catch (e) { if (persistOK || !saveState._warned) { saveState._warned = true; console.warn('💾 saveState failed (no volume?):', e.message); } }
 }
@@ -115,10 +120,15 @@ function allGroupNames() {
   return [...set];
 }
 function groupForToken(token) {
-  if (!authEnabled() || !token) return null;
-  for (const g of allGroupNames()) {
-    if (safeEq(groupToken(g), token)) return g;
+  if (!token) return null;
+  if (authEnabled()) {
+    for (const g of allGroupNames()) {
+      if (safeEq(groupToken(g), token)) return g;
+    }
   }
+  // A blank invite becomes a real group once the client names it.
+  const inv = invites[token];
+  if (inv && inv.groupName) return inv.groupName;
   return null;
 }
 
@@ -152,9 +162,34 @@ app.get('/', (req, res) => {
 
 // Client portal — one group only, no way to reach the others
 app.get('/g/:token', (req, res) => {
-  const group = groupForToken(req.params.token);
-  if (!group) return res.status(404).send('<!DOCTYPE html><meta charset="utf-8"><body style="font-family:system-ui;background:#0b1424;color:#e2e8f0;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0"><div style="text-align:center"><div style="font-size:48px">🔗</div><h2>This link is not valid</h2><p style="opacity:.7">Ask for a new link.</p></div>');
-  res.send(renderDashboard({ mode: 'client', group, token: req.params.token }));
+  const token = req.params.token;
+  const group = groupForToken(token);
+  if (group) return res.send(renderDashboard({ mode: 'client', group, token }));
+  // A blank invite that has not been named yet → open in "name your group" mode.
+  if (invites[token]) return res.send(renderDashboard({ mode: 'client', group: '', token, needsName: true }));
+  return res.status(404).send('<!DOCTYPE html><meta charset="utf-8"><body style="font-family:system-ui;background:#0b1424;color:#e2e8f0;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0"><div style="text-align:center"><div style="font-size:48px">🔗</div><h2>This link is not valid</h2><p style="opacity:.7">Ask for a new link.</p></div>');
+});
+
+// Admin: create a blank group invite (client names it on open)
+app.post('/api/invites', requireAdmin, (req, res) => {
+  const token = crypto.randomBytes(12).toString('hex');
+  invites[token] = { groupName: null, createdAt: Date.now() };
+  const base = (req.headers['x-forwarded-proto'] || req.protocol) + '://' + req.get('host');
+  res.json({ success: true, token, url: base + '/g/' + token });
+});
+
+// Client names a blank invite (turns it into a real group). No clientScope —
+// the invite has no group yet.
+app.post('/g/:token/api/name', (req, res) => {
+  const inv = invites[req.params.token];
+  if (!inv) return res.status(404).json({ error: 'invalid link' });
+  if (inv.groupName) return res.json({ success: true, group: inv.groupName });
+  const name = String(req.body.name || '').trim().slice(0, 60);
+  if (!name) return res.status(400).json({ error: 'name required' });
+  inv.groupName = name;
+  if (!sharedData.groups.includes(name)) sharedData.groups.push(name);
+  sharedData.lastModified = new Date().toISOString();
+  res.json({ success: true, group: name });
 });
 
 function renderDashboard(opts) {
@@ -166,6 +201,7 @@ function renderDashboard(opts) {
     + 'window.__GROUP=' + JSON.stringify(group) + ';'
     + 'window.__API='   + JSON.stringify(apiBase) + ';'
     + 'window.__AUTH='  + (authEnabled() ? 'true' : 'false') + ';'
+    + 'window.__NEEDS_NAME=' + (opts.needsName ? 'true' : 'false') + ';'
     + '</script>';
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -507,7 +543,13 @@ function renderDashboard(opts) {
             <div class="toolbar">
                 <input type="text" class="search-box" id="search" placeholder="🔍 Search by name, passport..." oninput="filterApplicants()">
                 <button class="btn btn-success" onclick="showAddModal()">➕ Add Applicant</button>
-                <button class="btn btn-primary" onclick="showAddGroupModal()">📁 New Group</button>
+                <div style="position:relative;display:inline-block">
+                    <button class="btn btn-primary" onclick="toggleGroupDD()">📁 New Group ▾</button>
+                    <div id="group-dd" style="display:none;position:absolute;top:100%;left:0;margin-top:6px;background:#0f1b2b;border:1px solid rgba(16,185,129,.2);border-radius:10px;overflow:hidden;z-index:100;min-width:250px;box-shadow:0 8px 32px rgba(0,0,0,.5)">
+                        <div onclick="showAddGroupModal();toggleGroupDD()" style="padding:11px 16px;color:#e5f7f1;cursor:pointer;font-size:13px;font-weight:600" onmouseenter="this.style.background='rgba(16,185,129,.15)'" onmouseleave="this.style.background=''">📁 Create group <span style="opacity:.6">— you name it</span></div>
+                        <div onclick="generateGroupLink();toggleGroupDD()" style="padding:11px 16px;color:#e5f7f1;cursor:pointer;font-size:13px;font-weight:600;border-top:1px solid rgba(255,255,255,.06)" onmouseenter="this.style.background='rgba(16,185,129,.15)'" onmouseleave="this.style.background=''">🔗 Generate client link <span style="opacity:.6">— they name it</span></div>
+                    </div>
+                </div>
                 <button class="btn btn-primary" onclick="importData()">📤 Import JSON</button>
                 <div style="position:relative;display:inline-block">
                     <button class="btn btn-warning" onclick="toggleExportDD()">💾 Export ▾</button>
@@ -1232,6 +1274,22 @@ function renderDashboard(opts) {
             }
         }
 
+        function toggleGroupDD() {
+            const d = document.getElementById('group-dd');
+            if (d) d.style.display = d.style.display === 'none' ? 'block' : 'none';
+        }
+        async function generateGroupLink() {
+            try {
+                const r = await fetch(API + '/api/invites', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+                const d = await r.json();
+                if (d && d.url) {
+                    try { await navigator.clipboard.writeText(d.url); toast('🔗 Link copied — send it to your client to name the group', 'success'); }
+                    catch (_) {}
+                    prompt('New group link — send it to your client (they will name the group and fill their info):', d.url);
+                } else { toast('Could not create link' + (window.__AUTH ? '' : ' — set ADMIN_KEY first'), 'error'); }
+            } catch (_) { toast('Could not create link', 'error'); }
+        }
+
         function showAddGroupModal() {
             const name = prompt('Enter group name:');
             if (!name || !name.trim()) return;
@@ -1330,6 +1388,18 @@ function renderDashboard(opts) {
         }
 
         function applyModeUI() {
+            // Blank invite: the client must name the group before anything else.
+            if (IS_CLIENT && window.__NEEDS_NAME) {
+                const ask = () => {
+                    const name = prompt('Welcome! Please enter a name for your group:');
+                    if (!name || !name.trim()) { return ask(); }
+                    fetch(API + '/api/name', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim() }) })
+                        .then(r => r.json()).then(d => { if (d && d.success) location.reload(); else { alert('Could not set the name, try again.'); ask(); } })
+                        .catch(() => { alert('Network error, try again.'); ask(); });
+                };
+                setTimeout(ask, 300);
+                return;   // don't build the rest until named + reloaded
+            }
             // Warn the admin while the dashboard is unprotected
             if (!IS_CLIENT && !window.__AUTH) {
                 const b = document.createElement('div');
