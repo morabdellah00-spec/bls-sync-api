@@ -1432,6 +1432,19 @@ function renderDashboard(opts) {
             catch (_) { prompt('Copy this link:', url); }
         }
 
+        async function renameClientGroup() {
+            const nn = prompt('Rename your group to:', CLIENT_GROUP);
+            if (nn === null) return;
+            const name = nn.trim();
+            if (!name || name === CLIENT_GROUP) return;
+            try {
+                const r = await fetch(API + '/api/rename', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ newName: name }) });
+                const d = await r.json();
+                if (d && d.success) { location.href = '/g/' + d.token; }   // continue at the right link
+                else alert('Could not rename, try again.');
+            } catch (_) { alert('Network error, try again.'); }
+        }
+
         function applyModeUI() {
             // Blank invite: the client must name the group before anything else.
             if (IS_CLIENT && window.__NEEDS_NAME) {
@@ -1457,7 +1470,18 @@ function renderDashboard(opts) {
             // Client mode: one group, nothing else reachable
             document.title = CLIENT_GROUP + ' — Applicants';
             const h1 = document.querySelector('.header h1');
-            if (h1) h1.textContent = CLIENT_GROUP;
+            if (h1) {
+                h1.textContent = CLIENT_GROUP;
+                // Edit icon next to the group name so the client can rename it.
+                const ed = document.createElement('span');
+                ed.textContent = ' ✏️';
+                ed.title = 'Rename your group';
+                ed.style.cssText = 'cursor:pointer;font-size:.6em;opacity:.75;margin-left:10px;vertical-align:middle;-webkit-text-fill-color:initial';
+                ed.onmouseenter = () => ed.style.opacity = '1';
+                ed.onmouseleave = () => ed.style.opacity = '.75';
+                ed.onclick = renameClientGroup;
+                h1.appendChild(ed);
+            }
             const sub = document.querySelector('.header h1 + small, .header small');
             if (sub) sub.textContent = 'Add or edit the applicants for your group';
 
@@ -2082,13 +2106,8 @@ app.post('/api/applicants/sync', (req, res) => {
 
 // FIX: Atomic group delete — safe, doesn't require client to send full applicant list
 // Rename a group everywhere: applicants, the groups list, hidden set, invites.
-app.post('/api/applicants/group/:groupName/rename', requireAdmin, (req, res) => {
-  const oldName = decodeURIComponent(req.params.groupName);
-  const newName = String(req.body.newName || '').trim().slice(0, 60);
-  if (!newName) return res.status(400).json({ error: 'newName required' });
-  if (newName === oldName) return res.json({ success: true, group: newName });
-  let count = 0;
-  const now = Date.now();
+function renameGroupEverywhere(oldName, newName) {
+  let count = 0; const now = Date.now();
   sharedData.applicants.forEach(a => { if (a.group === oldName) { a.group = newName; a._updatedAt = now; count++; } });
   sharedData.groups = sharedData.groups.filter(g => g !== oldName);
   if (!sharedData.groups.includes(newName)) sharedData.groups.push(newName);
@@ -2096,7 +2115,31 @@ app.post('/api/applicants/group/:groupName/rename', requireAdmin, (req, res) => 
   for (const t in invites) { if (invites[t].groupName === oldName) invites[t].groupName = newName; }
   sharedData.lastModified = new Date().toISOString();
   console.log('Renamed group "' + oldName + '" -> "' + newName + '" (' + count + ' applicants)');
+  return count;
+}
+app.post('/api/applicants/group/:groupName/rename', requireAdmin, (req, res) => {
+  const oldName = decodeURIComponent(req.params.groupName);
+  const newName = String(req.body.newName || '').trim().slice(0, 60);
+  if (!newName) return res.status(400).json({ error: 'newName required' });
+  if (newName === oldName) return res.json({ success: true, group: newName });
+  const count = renameGroupEverywhere(oldName, newName);
   res.json({ success: true, group: newName, renamed: count });
+});
+
+// Client renames THEIR OWN group from the portal. Returns the token to
+// continue at: an invite keeps its token; an HMAC link gets the new one.
+app.post('/g/:token/api/rename', (req, res) => {
+  const token = req.params.token;
+  const oldName = groupForToken(token);
+  if (!oldName) return res.status(404).json({ error: 'invalid link' });
+  const newName = String(req.body.newName || '').trim().slice(0, 60);
+  if (!newName) return res.status(400).json({ error: 'name required' });
+  if (newName === oldName) return res.json({ success: true, group: newName, token });
+  renameGroupEverywhere(oldName, newName);
+  let newToken = token;
+  if (invites[token]) newToken = token;                    // invite token unchanged
+  else if (authEnabled()) newToken = groupToken(newName);  // HMAC link changes with the name
+  res.json({ success: true, group: newName, token: newToken });
 });
 
 app.delete('/api/applicants/group/:groupName', requireAdmin, (req, res) => {
