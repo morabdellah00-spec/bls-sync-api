@@ -1727,8 +1727,9 @@ app.post('/g/:token/api/applicants/sync', clientScope, (req, res) => {
     if (!existing) {
       serverMap.set(a.PassportNo, { ...a, _updatedAt: a._updatedAt || now, _createdAt: now, _photoUpdatedAt: a.photo ? now : 0 });
     } else if ((a._updatedAt || 0) >= (existing._updatedAt || 0)) {
-      const photoChanged = a.photo !== existing.photo;
-      serverMap.set(a.PassportNo, { ...a, _updatedAt: a._updatedAt || now, _createdAt: existing._createdAt || now, _photoUpdatedAt: photoChanged ? now : (existing._photoUpdatedAt || 0) });
+      const keptPhoto = a.photo ? a.photo : existing.photo;
+      const photoChanged = keptPhoto !== existing.photo;
+      serverMap.set(a.PassportNo, { ...a, photo: keptPhoto, _updatedAt: a._updatedAt || now, _createdAt: existing._createdAt || now, _photoUpdatedAt: photoChanged ? now : (existing._photoUpdatedAt || 0) });
     }
   }
   sharedData.applicants = Array.from(serverMap.values());
@@ -2028,10 +2029,14 @@ app.post('/api/applicants/sync', (req, res) => {
       const existingTime = existing._updatedAt  || 0;
       const incomingTime = incoming._updatedAt  || 0;
       if (incomingTime >= existingTime) {
-        // Track if photo changed
-        const photoChanged = incoming.photo !== existing.photo;
+        // NEVER lose a photo: a push without one (a browser that hasn't pulled
+        // the photo yet, a text-only update, a lite sync) must keep the photo
+        // already on the server. Only a real, non-empty incoming photo replaces it.
+        const keptPhoto = incoming.photo ? incoming.photo : existing.photo;
+        const photoChanged = keptPhoto !== existing.photo;
         serverMap.set(incoming.PassportNo, {
           ...incoming,
+          photo: keptPhoto,
           _updatedAt: incomingTime || Date.now(),
           _createdAt: existing._createdAt || Date.now(),
           _photoUpdatedAt: photoChanged ? Date.now() : (existing._photoUpdatedAt || 0)
