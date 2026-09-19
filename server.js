@@ -1616,8 +1616,7 @@ function renderDashboard(opts) {
             const a = apps.find(x => x.PassportNo === pp);
             if (!a) return;
             const nm = ((a.FirstName||'') + ' ' + (a.LastName||'')).trim() || pp;
-            if (!confirm('Remove PAYMENT from ' + nm + '?
-They will be available to book again.')) return;
+            if (!confirm('Remove PAYMENT from ' + nm + ' — they will be available to book again?')) return;
             a.status = '';
             a._updatedAt = Date.now();
             filterApplicants();
