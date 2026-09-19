@@ -874,10 +874,10 @@ function renderDashboard(opts) {
                 if (isHid) badge.style.opacity = '0.5';
                 const link = groupLinks[g];
                 const linkHtml = link ? \` <span style="cursor:pointer;font-size:12px;margin-left:4px" class="glink" onclick="event.stopPropagation(); copyGroupLink('\${g.replace(/'/g, "\\'")}')" title="Copy this group's client link">🔗</span>\` : '';
-                badge.innerHTML = \`\${g} (\${cnt})\${isHid?' 🚫':''}\${linkHtml} <span style="cursor:pointer;opacity:0;transition:opacity .2s;font-size:11px;margin-left:4px" class="ghide" onclick="event.stopPropagation(); toggleGroupHidden('\${g}')" title="\${isHid?'Show':'Hide from extension'}">\${isHid?'👁️':'🙈'}</span> <span class="group-delete" onclick="event.stopPropagation(); deleteGroup('\${g}')">×</span>\`;
+                badge.innerHTML = \`\${g} (\${cnt})\${isHid?' 🚫':''}\${linkHtml} <span style="cursor:pointer;opacity:0;transition:opacity .2s;font-size:11px;margin-left:4px" class="grename" onclick="event.stopPropagation(); renameGroup('\${g.replace(/'/g, "\\'")}')" title="Rename group">✏️</span> <span style="cursor:pointer;opacity:0;transition:opacity .2s;font-size:11px;margin-left:4px" class="ghide" onclick="event.stopPropagation(); toggleGroupHidden('\${g}')" title="\${isHid?'Show':'Hide from extension'}">\${isHid?'👁️':'🙈'}</span> <span class="group-delete" onclick="event.stopPropagation(); deleteGroup('\${g}')">×</span>\`;
                 badge.onclick = () => { filter = g; updateUI(); };
-                badge.onmouseenter = () => { const h = badge.querySelector('.ghide'); if(h) h.style.opacity='1'; };
-                badge.onmouseleave = () => { const h = badge.querySelector('.ghide'); if(h) h.style.opacity='0'; };
+                badge.onmouseenter = () => { badge.querySelectorAll('.ghide,.grename').forEach(h => h.style.opacity='1'); };
+                badge.onmouseleave = () => { badge.querySelectorAll('.ghide,.grename').forEach(h => h.style.opacity='0'); };
                 gf.appendChild(badge);
             });
             
@@ -1282,6 +1282,26 @@ function renderDashboard(opts) {
         }
 
         // FIX: Use atomic group DELETE endpoint instead of full sync
+        async function renameGroup(g) {
+            const nn = prompt('Rename group "' + g + '" to:', g);
+            if (nn === null) return;
+            const name = nn.trim();
+            if (!name || name === g) return;
+            try {
+                const r = await fetch(API + '/api/applicants/group/' + encodeURIComponent(g) + '/rename', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ newName: name })
+                });
+                const d = await r.json();
+                if (d && d.success) {
+                    if (filter === g) filter = d.group;
+                    toast('Renamed to "' + d.group + '"', 'success');
+                    await loadData();
+                    if (!IS_CLIENT && window.__AUTH) await loadGroupLinks();
+                    updateUI();
+                } else { toast('Rename failed', 'error'); }
+            } catch (_) { toast('Rename failed', 'error'); }
+        }
+
         async function deleteGroup(groupName) {
             const count = apps.filter(a => a.group === groupName).length;
             if (!confirm(\`Delete group "\${groupName}" and \${count} applicant(s)?\`)) return;
@@ -2061,6 +2081,24 @@ app.post('/api/applicants/sync', (req, res) => {
 });
 
 // FIX: Atomic group delete — safe, doesn't require client to send full applicant list
+// Rename a group everywhere: applicants, the groups list, hidden set, invites.
+app.post('/api/applicants/group/:groupName/rename', requireAdmin, (req, res) => {
+  const oldName = decodeURIComponent(req.params.groupName);
+  const newName = String(req.body.newName || '').trim().slice(0, 60);
+  if (!newName) return res.status(400).json({ error: 'newName required' });
+  if (newName === oldName) return res.json({ success: true, group: newName });
+  let count = 0;
+  const now = Date.now();
+  sharedData.applicants.forEach(a => { if (a.group === oldName) { a.group = newName; a._updatedAt = now; count++; } });
+  sharedData.groups = sharedData.groups.filter(g => g !== oldName);
+  if (!sharedData.groups.includes(newName)) sharedData.groups.push(newName);
+  if (hiddenGroups.has(oldName)) { hiddenGroups.delete(oldName); hiddenGroups.add(newName); }
+  for (const t in invites) { if (invites[t].groupName === oldName) invites[t].groupName = newName; }
+  sharedData.lastModified = new Date().toISOString();
+  console.log('Renamed group "' + oldName + '" -> "' + newName + '" (' + count + ' applicants)');
+  res.json({ success: true, group: newName, renamed: count });
+});
+
 app.delete('/api/applicants/group/:groupName', requireAdmin, (req, res) => {
   const groupName = decodeURIComponent(req.params.groupName);
   const now = Date.now();
