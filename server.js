@@ -956,7 +956,7 @@ function renderDashboard(opts) {
                 const indent = o.famKey ? 'padding-left:26px;' : '';
                 return \`<tr\${cls}\${style}>
                     <td style="\${indent}">\${a.photo ? \`<img class="photo-thumb" src="\${a.photo}">\` : '<div class="no-photo">👤</div>'}</td>
-                    <td><strong style="\${a.workOn ? 'color:#f59e0b' : ''}">\${a.workOn ? '🟠 ' : ''}\${a.FirstName || ''} \${a.LastName || ''}</strong>\${String(a.status||'').toUpperCase()==='PAYMENT' ? ' <span style="display:inline-block;background:#16a34a;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;letter-spacing:.5px;vertical-align:middle">PAYMENT</span>' : (inProg[a.PassportNo] ? ' <span style="display:inline-block;background:#2563eb;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;letter-spacing:.4px;vertical-align:middle">IN PROGRESS</span>' : '')}</td>
+                    <td><strong style="\${a.workOn ? 'color:#f59e0b' : ''}">\${a.workOn ? '🟠 ' : ''}\${a.FirstName || ''} \${a.LastName || ''}</strong>\${String(a.status||'').toUpperCase()==='PAYMENT' ? ' <span class="pay-clear" data-pp="\${encodeURIComponent(a.PassportNo)}" title="Click to remove PAYMENT so this applicant can be booked again" style="display:inline-block;background:#16a34a;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;letter-spacing:.5px;vertical-align:middle;cursor:pointer">PAYMENT ✕</span>' : (inProg[a.PassportNo] ? ' <span style="display:inline-block;background:#2563eb;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;letter-spacing:.4px;vertical-align:middle">IN PROGRESS</span>' : '')}</td>
                     <td>\${a.PassportNo || ''}</td>
                     <td>\${a.DateOfBirth || '-'}</td>
                     <td>\${a.PlaceOfBirth || '-'}\${(a.City || a.PostalCode) ? \`<br><small style="opacity:.65">🏠 \${[a.City, a.PostalCode].filter(Boolean).join(', ')}</small>\` : ''}</td>
@@ -1603,6 +1603,26 @@ function renderDashboard(opts) {
             e.preventDefault(); e.stopPropagation();
             toggleWork(decodeURIComponent(t.getAttribute('data-pp')));
         });
+
+        // Remove PAYMENT so an applicant can be booked again (auto-fill stops
+        // skipping them once it's cleared).
+        document.addEventListener('click', (e) => {
+            const t = e.target.closest('.pay-clear');
+            if (!t) return;
+            e.preventDefault(); e.stopPropagation();
+            clearPayment(decodeURIComponent(t.getAttribute('data-pp')));
+        });
+        async function clearPayment(pp) {
+            const a = apps.find(x => x.PassportNo === pp);
+            if (!a) return;
+            const nm = ((a.FirstName||'') + ' ' + (a.LastName||'')).trim() || pp;
+            if (!confirm('Remove PAYMENT from ' + nm + '?
+They will be available to book again.')) return;
+            a.status = '';
+            a._updatedAt = Date.now();
+            filterApplicants();
+            try { await sync(); toast('PAYMENT removed — ready to book again', 'success'); } catch (_) { toast('Failed', 'error'); }
+        }
         async function toggleWork(pp) {
             const a = apps.find(x => x.PassportNo === pp);
             if (!a) return;
