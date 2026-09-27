@@ -376,40 +376,39 @@ function renderDashboard(opts) {
         .group-delete { color: #e74c3c; font-weight: bold; cursor: pointer; margin-left: 5px; transition: color 0.3s; }
         .group-badge:hover .group-delete { color: white; }
 
-        /* ── Left Archive rail ───────────────────────────────── */
+        /* ── Left Archive rail (amber theme, stands apart from the teal UI) ── */
         #archive-rail {
             position: fixed; top: 0; left: 0; width: 250px; height: 100vh;
-            background: linear-gradient(180deg,#0c1626,#0a1220);
-            border-right: 1px solid rgba(255,255,255,.08);
+            background: linear-gradient(180deg,#241a04,#171004);
+            border-right: 2px solid rgba(245,158,11,.45);
             box-shadow: 4px 0 24px rgba(0,0,0,.35);
             z-index: 500; display: none; flex-direction: column;
             padding: 16px 14px; overflow-y: auto;
         }
         body.rail-open .container { margin-left: 270px; }
-        body.rail-open { }
-        #archive-rail h4 { margin: 0 0 4px; font-size: 12px; letter-spacing: .8px; text-transform: uppercase; color: #7dd3fc; }
-        #archive-rail .rail-sub { font-size: 10px; opacity: .5; margin: 0 0 12px; }
-        .rail-sec-title { font-size: 11px; font-weight: 800; letter-spacing: .5px; color: #94a3b8; margin: 14px 0 8px; display:flex; align-items:center; gap:6px; }
+        #archive-rail h4 { margin: 0 0 4px; font-size: 12px; letter-spacing: .8px; text-transform: uppercase; color: #fbbf24; }
+        #archive-rail .rail-sub { font-size: 10px; opacity: .55; margin: 0 0 12px; color:#fde68a; }
+        .rail-sec-title { font-size: 11px; font-weight: 800; letter-spacing: .5px; color: #fcd34d; margin: 14px 0 8px; display:flex; align-items:center; gap:6px; }
         .rail-chip {
             display: flex; align-items: center; gap: 8px; padding: 8px 10px; margin-bottom: 8px;
-            background: #0f1b2b; border: 1px solid rgba(255,255,255,.07); border-radius: 10px;
-            font-size: 13px; cursor: pointer; transition: all .2s;
+            background: rgba(245,158,11,.07); border: 1px solid rgba(245,158,11,.18); border-radius: 10px;
+            font-size: 13px; cursor: pointer; transition: border-color .15s, background .15s;
         }
-        .rail-chip:hover { border-color: rgba(16,185,129,.5); background: #12263b; }
-        .rail-chip .rc-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+        .rail-chip:hover { border-color: rgba(245,158,11,.7); background: rgba(245,158,11,.14); }
+        .rail-chip .rc-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; color:#fef3c7; }
         .rail-chip .rc-restore {
             flex: 0 0 auto; font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 14px;
             background: rgba(16,185,129,.16); color: #4ade80; border: 1px solid rgba(16,185,129,.4);
         }
         .rail-chip .rc-restore:hover { background: #16a34a; color: #fff; }
-        .rail-chip img.rc-av, .rail-chip span.rc-av { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; display:inline-flex; align-items:center; justify-content:center; background:#123; font-size:12px; }
+        .rail-chip img.rc-av, .rail-chip span.rc-av { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; display:inline-flex; align-items:center; justify-content:center; background:#3a2a05; font-size:12px; }
         #rail-toggle {
             position: fixed; top: 14px; left: 14px; z-index: 501; cursor: pointer;
-            background: #0f1b2b; border: 1px solid rgba(255,255,255,.12); color: #cbd5e1;
-            border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 700; display: none;
+            background: #f59e0b; border: 1px solid rgba(245,158,11,.6); color: #171004;
+            border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 800; display: none;
         }
-        #rail-toggle:hover { background: #16a34a; color: #fff; }
-        #rail-toggle .rt-badge { background:#16a34a; color:#fff; border-radius:12px; padding:0 6px; font-size:11px; margin-left:6px; }
+        #rail-toggle:hover { background: #fbbf24; }
+        #rail-toggle .rt-badge { background:#171004; color:#fbbf24; border-radius:12px; padding:0 6px; font-size:11px; margin-left:6px; }
         @media (max-width: 1200px) {
             body.rail-open .container { margin-left: 0; }
             #archive-rail { width: 220px; }
@@ -970,16 +969,20 @@ function renderDashboard(opts) {
             if (panel) panel.style.display = 'none';
         }
 
-        let railOpen = true;
+        window.railOpen = true;
         function toggleRail() {
-            railOpen = !railOpen;
-            applyRailState();
+            window.railOpen = !window.railOpen;
+            applyRailState();        // instant — no waiting for the next auto-refresh
         }
-        function applyRailState(hasItems) {
+        function applyRailState() {
             const rail = document.getElementById('archive-rail');
             const tgl  = document.getElementById('rail-toggle');
+            const body = document.getElementById('rail-body');
             if (!rail || !tgl) return;
-            if (railOpen && hasItems) {
+            // Derive "has items" straight from the DOM so this never falls out of
+            // sync with a variable — rail-body is emptied only when nothing is archived.
+            const hasItems = !!(body && body.children.length);
+            if (window.railOpen && hasItems) {
                 rail.style.display = 'flex'; tgl.style.display = 'none';
                 document.body.classList.add('rail-open');
             } else {
@@ -1003,9 +1006,8 @@ function renderDashboard(opts) {
             const total = archivedGroups.length + booked.length;
 
             if (badge) { badge.textContent = total; badge.style.display = total ? 'inline-block' : 'none'; }
-            const tglBadge = document.getElementById('rail-toggle-badge');
 
-            if (!total) { applyRailState(false); body.innerHTML = ''; return; }
+            if (!total) { body.innerHTML = ''; applyRailState(); return; }
 
             const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
             let html = '';
@@ -1031,7 +1033,7 @@ function renderDashboard(opts) {
             });
 
             body.innerHTML = html;
-            applyRailState(true);
+            applyRailState();
         }
 
         function filterApplicants() {
