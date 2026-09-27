@@ -14,8 +14,21 @@ let sharedData = {
   _deletedSince: [] // Track deleted passports with timestamps for delta sync
 };
 
-// Hidden groups — extensions won't receive applicants from these groups
+// Archived groups — extensions won't receive applicants from these groups.
+// (Kept the variable name hiddenGroups for storage/back-compat; the UI calls
+// it "Archive".)
 let hiddenGroups = new Set();
+
+// A booked applicant (reached PAYMENT) is auto-archived: hidden from every
+// extension so the panel never shows them, and moved to the dashboard's
+// left Archive rail. This is the single source of truth for "is archived".
+function isBookedApplicant(a) {
+  return !!(a && String(a.status || '').toUpperCase() === 'PAYMENT');
+}
+// True when an applicant must NOT be sent to extensions (archived group OR booked).
+function isArchivedFromExtension(a) {
+  return (a && a.group && hiddenGroups.has(a.group)) || isBookedApplicant(a);
+}
 
 // Blank group invites: token -> { groupName: null|string, createdAt }. The
 // client opens /g/<token>, names the group, then fills it. Persisted with state.
@@ -362,7 +375,46 @@ function renderDashboard(opts) {
         .group-badge.active { background: linear-gradient(135deg, #10b981 0%, #0ea5a3 100%); color: white; border-color: transparent; }
         .group-delete { color: #e74c3c; font-weight: bold; cursor: pointer; margin-left: 5px; transition: color 0.3s; }
         .group-badge:hover .group-delete { color: white; }
-        
+
+        /* ── Left Archive rail ───────────────────────────────── */
+        #archive-rail {
+            position: fixed; top: 0; left: 0; width: 250px; height: 100vh;
+            background: linear-gradient(180deg,#0c1626,#0a1220);
+            border-right: 1px solid rgba(255,255,255,.08);
+            box-shadow: 4px 0 24px rgba(0,0,0,.35);
+            z-index: 500; display: none; flex-direction: column;
+            padding: 16px 14px; overflow-y: auto;
+        }
+        body.rail-open .container { margin-left: 270px; }
+        body.rail-open { }
+        #archive-rail h4 { margin: 0 0 4px; font-size: 12px; letter-spacing: .8px; text-transform: uppercase; color: #7dd3fc; }
+        #archive-rail .rail-sub { font-size: 10px; opacity: .5; margin: 0 0 12px; }
+        .rail-sec-title { font-size: 11px; font-weight: 800; letter-spacing: .5px; color: #94a3b8; margin: 14px 0 8px; display:flex; align-items:center; gap:6px; }
+        .rail-chip {
+            display: flex; align-items: center; gap: 8px; padding: 8px 10px; margin-bottom: 8px;
+            background: #0f1b2b; border: 1px solid rgba(255,255,255,.07); border-radius: 10px;
+            font-size: 13px; cursor: pointer; transition: all .2s;
+        }
+        .rail-chip:hover { border-color: rgba(16,185,129,.5); background: #12263b; }
+        .rail-chip .rc-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+        .rail-chip .rc-restore {
+            flex: 0 0 auto; font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 14px;
+            background: rgba(16,185,129,.16); color: #4ade80; border: 1px solid rgba(16,185,129,.4);
+        }
+        .rail-chip .rc-restore:hover { background: #16a34a; color: #fff; }
+        .rail-chip img.rc-av, .rail-chip span.rc-av { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; display:inline-flex; align-items:center; justify-content:center; background:#123; font-size:12px; }
+        #rail-toggle {
+            position: fixed; top: 14px; left: 14px; z-index: 501; cursor: pointer;
+            background: #0f1b2b; border: 1px solid rgba(255,255,255,.12); color: #cbd5e1;
+            border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 700; display: none;
+        }
+        #rail-toggle:hover { background: #16a34a; color: #fff; }
+        #rail-toggle .rt-badge { background:#16a34a; color:#fff; border-radius:12px; padding:0 6px; font-size:11px; margin-left:6px; }
+        @media (max-width: 1200px) {
+            body.rail-open .container { margin-left: 0; }
+            #archive-rail { width: 220px; }
+        }
+
         table { width: 100%; border-collapse: separate; border-spacing: 0 10px; }
         
         thead th {
@@ -527,6 +579,14 @@ function renderDashboard(opts) {
     </style>
 </head>
 <body>
+    <div id="rail-toggle" onclick="toggleRail()">📥 Archive<span id="rail-toggle-badge" class="rt-badge" style="display:none">0</span></div>
+    <aside id="archive-rail">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <div><h4>📥 Archive</h4><p class="rail-sub">Hidden from the extension</p></div>
+            <div onclick="toggleRail()" style="cursor:pointer;opacity:.6;font-size:16px;font-weight:900" title="Collapse">«</div>
+        </div>
+        <div id="rail-body"></div>
+    </aside>
     <div class="container">
         <div class="header">
             <div class="header-left" style="display:flex;align-items:center;gap:18px">
@@ -867,21 +927,21 @@ function renderDashboard(opts) {
             gf.appendChild(all);
             
             groups.forEach(g => {
+                if (hiddenGroups.has(g)) return;   // archived groups live in the left rail, not here
                 const cnt = apps.filter(a => a.group === g).length;
                 const badge = document.createElement('div');
-                const isHid = hiddenGroups.has(g);
                 badge.className = 'group-badge' + (filter === g ? ' active' : '');
-                if (isHid) badge.style.opacity = '0.5';
                 const link = groupLinks[g];
                 const linkHtml = link ? \` <span style="cursor:pointer;font-size:12px;margin-left:4px" class="glink" onclick="event.stopPropagation(); copyGroupLink('\${g.replace(/'/g, "\\'")}')" title="Copy this group's client link">🔗</span>\` : '';
-                badge.innerHTML = \`\${g} (\${cnt})\${isHid?' 🚫':''}\${linkHtml} <span style="cursor:pointer;opacity:0;transition:opacity .2s;font-size:11px;margin-left:4px" class="grename" onclick="event.stopPropagation(); renameGroup('\${g.replace(/'/g, "\\'")}')" title="Rename group">✏️</span> <span style="cursor:pointer;opacity:0;transition:opacity .2s;font-size:11px;margin-left:4px" class="ghide" onclick="event.stopPropagation(); toggleGroupHidden('\${g}')" title="\${isHid?'Show':'Hide from extension'}">\${isHid?'👁️':'🙈'}</span> <span class="group-delete" onclick="event.stopPropagation(); deleteGroup('\${g}')">×</span>\`;
+                badge.innerHTML = \`\${g} (\${cnt})\${linkHtml} <span style="cursor:pointer;opacity:0;transition:opacity .2s;font-size:11px;margin-left:4px" class="grename" onclick="event.stopPropagation(); renameGroup('\${g.replace(/'/g, "\\'")}')" title="Rename group">✏️</span> <span style="cursor:pointer;opacity:0;transition:opacity .2s;font-size:12px;margin-left:4px" class="ghide" onclick="event.stopPropagation(); toggleGroupHidden('\${g}')" title="Archive (hide from extension)">📥</span> <span class="group-delete" onclick="event.stopPropagation(); deleteGroup('\${g}')">×</span>\`;
                 badge.onclick = () => { filter = g; updateUI(); };
                 badge.onmouseenter = () => { badge.querySelectorAll('.ghide,.grename').forEach(h => h.style.opacity='1'); };
                 badge.onmouseleave = () => { badge.querySelectorAll('.ghide,.grename').forEach(h => h.style.opacity='0'); };
                 gf.appendChild(badge);
             });
-            
+
             renderBooked();
+            renderArchive();
             filterApplicants();
         }
 
@@ -903,24 +963,75 @@ function renderDashboard(opts) {
             } catch (_) {}
         }
 
+        // The old green "Booked" panel is retired — booked applicants now live
+        // in the left Archive rail (see renderArchive). Keep the panel hidden.
         function renderBooked() {
-            const booked = apps.filter(a => String(a.status||'').toUpperCase() === 'PAYMENT');
             const panel = document.getElementById('booked-panel');
-            if (!panel) return;
-            panel.style.display = booked.length ? 'block' : 'none';
-            const cnt = document.getElementById('booked-count');
-            if (cnt) cnt.textContent = booked.length + (booked.length === 1 ? ' appointment' : ' appointments');
-            const list = document.getElementById('booked-list');
-            if (!list) return;
-            list.innerHTML = booked.map(a => {
+            if (panel) panel.style.display = 'none';
+        }
+
+        let railOpen = true;
+        function toggleRail() {
+            railOpen = !railOpen;
+            applyRailState();
+        }
+        function applyRailState(hasItems) {
+            const rail = document.getElementById('archive-rail');
+            const tgl  = document.getElementById('rail-toggle');
+            if (!rail || !tgl) return;
+            if (railOpen && hasItems) {
+                rail.style.display = 'flex'; tgl.style.display = 'none';
+                document.body.classList.add('rail-open');
+            } else {
+                rail.style.display = 'none';
+                document.body.classList.remove('rail-open');
+                tgl.style.display = hasItems ? 'block' : 'none';
+            }
+        }
+        // Left rail: archived GROUPS + booked (PAYMENT) applicants. Click restore
+        // to bring either back into the extension.
+        function renderArchive() {
+            const rail = document.getElementById('archive-rail');
+            const body = document.getElementById('rail-body');
+            const tgl  = document.getElementById('rail-toggle');
+            const badge = document.getElementById('rail-toggle-badge');
+            if (!rail || !body) return;
+            if (IS_CLIENT) { rail.style.display = 'none'; if (tgl) tgl.style.display = 'none'; document.body.classList.remove('rail-open'); return; }
+
+            const archivedGroups = groups.filter(g => hiddenGroups.has(g));
+            const booked = apps.filter(a => String(a.status||'').toUpperCase() === 'PAYMENT');
+            const total = archivedGroups.length + booked.length;
+
+            if (badge) { badge.textContent = total; badge.style.display = total ? 'inline-block' : 'none'; }
+            const tglBadge = document.getElementById('rail-toggle-badge');
+
+            if (!total) { applyRailState(false); body.innerHTML = ''; return; }
+
+            const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            let html = '';
+            html += '<div class="rail-sec-title">📁 Archived groups <span style="opacity:.5">(' + archivedGroups.length + ')</span></div>';
+            if (!archivedGroups.length) html += '<div style="font-size:11px;opacity:.4;margin-bottom:6px">None</div>';
+            archivedGroups.forEach(g => {
+                const cnt = apps.filter(a => a.group === g).length;
+                html += '<div class="rail-chip rail-grp" data-g="' + encodeURIComponent(g) + '" title="View this group">' +
+                        '<span class="rc-name">' + esc(g) + ' <span style="opacity:.55;font-weight:400">(' + cnt + ')</span></span>' +
+                        '<span class="rc-restore rail-grp-restore" data-g="' + encodeURIComponent(g) + '" title="Restore to extension">↩ restore</span>' +
+                        '</div>';
+            });
+
+            html += '<div class="rail-sec-title">✅ Booked <span style="opacity:.5">(' + booked.length + ')</span></div>';
+            if (!booked.length) html += '<div style="font-size:11px;opacity:.4">None</div>';
+            booked.forEach(a => {
                 const name = ((a.FirstName||'') + ' ' + (a.LastName||'')).trim() || a.PassportNo || '?';
-                const photo = a.photo
-                    ? '<img src="' + a.photo + '" style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex:0 0 auto">'
-                    : '<span style="width:26px;height:26px;border-radius:50%;background:#123;display:inline-flex;align-items:center;justify-content:center;font-size:13px;flex:0 0 auto">👤</span>';
-                const grp = a.group ? '<span style="opacity:.65;font-size:11px">· ' + a.group + '</span>' : '';
-                return '<span style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px 6px 6px;border-radius:22px;background:rgba(22,163,74,.16);border:1px solid rgba(22,163,74,.35);color:#dcfce7;font-size:13px;font-weight:700">' +
-                       photo + '<span>' + name + ' <span style="opacity:.7;font-weight:600">' + (a.PassportNo||'') + '</span> ' + grp + '</span></span>';
-            }).join('');
+                const av = a.photo ? '<img class="rc-av" src="' + esc(a.photo) + '">' : '<span class="rc-av">👤</span>';
+                html += '<div class="rail-chip" title="' + esc((a.PassportNo||'') + (a.group ? ' · ' + a.group : '')) + '">' +
+                        av + '<span class="rc-name">' + esc(name) + '</span>' +
+                        '<span class="rc-restore rail-unbook" data-pp="' + encodeURIComponent(a.PassportNo || '') + '" title="Remove PAYMENT — book again">↩ un-book</span>' +
+                        '</div>';
+            });
+
+            body.innerHTML = html;
+            applyRailState(true);
         }
 
         function filterApplicants() {
@@ -1522,10 +1633,10 @@ function renderDashboard(opts) {
                 const d = await r.json();
                 if (d.success) {
                     hiddenGroups = new Set(d.hidden);
-                    toast(g + (action === 'hide' ? ' hidden from extension' : ' visible to extension'), 'success');
+                    toast(g + (action === 'hide' ? ' 📥 archived — hidden from extension' : ' ↩ restored — visible to extension'), 'success');
                 }
             } catch(e) { toast('Failed: ' + e.message, 'error'); }
-            renderTable();
+            updateUI();
         }
 
         function importData() {
@@ -1612,6 +1723,19 @@ function renderDashboard(opts) {
             e.preventDefault(); e.stopPropagation();
             clearPayment(decodeURIComponent(t.getAttribute('data-pp')));
         });
+
+        // Left Archive rail: restore group, un-book applicant, or view a group.
+        document.addEventListener('click', (e) => {
+            const un = e.target.closest('.rail-unbook');
+            if (un) { e.preventDefault(); e.stopPropagation(); clearPayment(decodeURIComponent(un.getAttribute('data-pp'))); return; }
+            const rr = e.target.closest('.rail-grp-restore');
+            if (rr) { e.preventDefault(); e.stopPropagation(); restoreGroup(decodeURIComponent(rr.getAttribute('data-g'))); return; }
+            const gc = e.target.closest('.rail-grp');
+            if (gc) { e.preventDefault(); filter = decodeURIComponent(gc.getAttribute('data-g')); updateUI(); return; }
+        });
+        function restoreGroup(g) {
+            if (hiddenGroups.has(g)) toggleGroupHidden(g);   // hidden -> show (restore)
+        }
         async function clearPayment(pp) {
             const a = apps.find(x => x.PassportNo === pp);
             if (!a) return;
@@ -1961,7 +2085,7 @@ app.get('/api/applicants', (req, res) => {
   } else {
     data = {
       ...sharedData,
-      applicants: sharedData.applicants.filter(a => !a.group || !hiddenGroups.has(a.group)),
+      applicants: sharedData.applicants.filter(a => !isArchivedFromExtension(a)),
       groups: sharedData.groups.filter(g => !hiddenGroups.has(g))
     };
   }
@@ -2010,7 +2134,7 @@ app.get('/api/sync-check', (req, res) => {
 // - deleted: passport numbers of removed applicants
 app.get('/api/applicants/delta', (req, res) => {
   const since = parseInt(req.query.since) || 0;
-  const filtered = sharedData.applicants.filter(a => !a.group || !hiddenGroups.has(a.group));
+  const filtered = sharedData.applicants.filter(a => !isArchivedFromExtension(a));
 
   if (since === 0) {
     // First sync — send everything with photos
