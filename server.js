@@ -582,7 +582,7 @@ function renderDashboard(opts) {
     <aside id="archive-rail">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
             <div><h4>📥 Archive</h4><p class="rail-sub">Hidden from the extension</p></div>
-            <div onclick="toggleRail()" style="cursor:pointer;opacity:.6;font-size:16px;font-weight:900" title="Collapse">«</div>
+            <div onclick="toggleRail()" style="cursor:pointer;font-size:14px;font-weight:900;background:#3b82f6;color:#fff;border-radius:8px;padding:4px 10px;box-shadow:0 2px 8px rgba(59,130,246,.4)" title="Hide archive panel">« Hide</div>
         </div>
         <div id="rail-body"></div>
     </aside>
@@ -919,9 +919,10 @@ function renderDashboard(opts) {
             
             const gf = document.getElementById('groups-filter');
             gf.innerHTML = '';
+            const activeCount = apps.filter(a => !(a.group && hiddenGroups.has(a.group)) && String(a.status||'').toUpperCase() !== 'PAYMENT').length;
             const all = document.createElement('div');
             all.className = 'group-badge' + (filter === 'all' ? ' active' : '');
-            all.textContent = \`All (\${apps.length})\`;
+            all.textContent = \`All (\${activeCount})\`;
             all.onclick = () => { filter = 'all'; updateUI(); };
             gf.appendChild(all);
             
@@ -1040,7 +1041,15 @@ function renderDashboard(opts) {
             const inProg = inProgressPassports();
             const q = document.getElementById('search').value.toLowerCase();
             let filtered = apps.filter(a => {
-                if (filter !== 'all' && a.group !== filter) return false;
+                const inArchivedGroup = a.group && hiddenGroups.has(a.group);
+                const isBooked = String(a.status||'').toUpperCase() === 'PAYMENT';
+                if (filter === 'all') {
+                    // "All" shows only ACTIVE applicants — archived groups and booked
+                    // applicants live in the left rail until restored/un-booked.
+                    if (inArchivedGroup || isBooked) return false;
+                } else {
+                    if (a.group !== filter) return false;  // viewing a specific group shows everyone in it
+                }
                 if (!q) return true;
                 return (a.FirstName || '').toLowerCase().includes(q) ||
                        (a.LastName  || '').toLowerCase().includes(q) ||
